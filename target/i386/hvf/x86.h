@@ -296,7 +296,7 @@ struct HVFX86EmulatorState {
     int interruptable;
     uint64_t fetch_rip;
     uint64_t rip;
-    struct x86_register regs[16];
+    struct x86_register regs[CPU_NB_REGS];
     struct x86_reg_flags   rflags;
     struct lazy_flags   lflags;
     uint8_t mmio_buf[4096];
