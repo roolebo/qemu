@@ -128,7 +128,7 @@ void write_reg(CPUX86State *env, int reg, target_ulong val, int size)
     }
 }
 
-target_ulong read_val_from_reg(target_ulong reg_ptr, int size)
+target_ulong read_val_from_reg(void *reg_ptr, int size)
 {
     target_ulong val;
     
@@ -151,7 +151,7 @@ target_ulong read_val_from_reg(target_ulong reg_ptr, int size)
     return val;
 }
 
-void write_val_to_reg(target_ulong reg_ptr, target_ulong val, int size)
+void write_val_to_reg(void *reg_ptr, target_ulong val, int size)
 {
     switch (size) {
     case 1:
@@ -171,18 +171,18 @@ void write_val_to_reg(target_ulong reg_ptr, target_ulong val, int size)
     }
 }
 
-static bool is_host_reg(struct CPUX86State *env, target_ulong ptr)
+static bool is_host_reg(struct CPUX86State *env, void *ptr)
 {
-    return (ptr - (target_ulong)&env->hvf_emul->regs[0]) < sizeof(env->hvf_emul->regs);
+    return (ptr - (void *) &env->hvf_emul->regs[0]) < sizeof(env->hvf_emul->regs);
 }
 
-void write_val_ext(struct CPUX86State *env, target_ulong ptr, target_ulong val, int size)
+void write_val_ext(struct CPUX86State *env, void *ptr, target_ulong val, int size)
 {
     if (is_host_reg(env, ptr)) {
         write_val_to_reg(ptr, val, size);
         return;
     }
-    vmx_write_mem(ENV_GET_CPU(env), ptr, &val, size);
+    vmx_write_mem(ENV_GET_CPU(env), (target_ulong) ptr, &val, size);
 }
 
 uint8_t *read_mmio(struct CPUX86State *env, target_ulong ptr, int bytes)
@@ -192,7 +192,7 @@ uint8_t *read_mmio(struct CPUX86State *env, target_ulong ptr, int bytes)
 }
 
 
-target_ulong read_val_ext(struct CPUX86State *env, target_ulong ptr, int size)
+target_ulong read_val_ext(struct CPUX86State *env, void *ptr, int size)
 {
     target_ulong val;
     uint8_t *mmio_ptr;
@@ -201,7 +201,7 @@ target_ulong read_val_ext(struct CPUX86State *env, target_ulong ptr, int size)
         return read_val_from_reg(ptr, size);
     }
 
-    mmio_ptr = read_mmio(env, ptr, size);
+    mmio_ptr = read_mmio(env, (target_ulong) ptr, size);
     switch (size) {
     case 1:
         val = *(uint8_t *)mmio_ptr;
@@ -226,6 +226,7 @@ static void fetch_operands(struct CPUX86State *env, struct x86_decode *decode,
                            int n, bool val_op0, bool val_op1, bool val_op2)
 {
     int i;
+    target_ulong hwaddr;
     bool calc_val[3] = {val_op0, val_op1, val_op2};
 
     for (i = 0; i < n; i++) {
@@ -247,9 +248,10 @@ static void fetch_operands(struct CPUX86State *env, struct x86_decode *decode,
             }
             break;
         case X86_VAR_OFFSET:
-            decode->op[i].ptr = decode_linear_addr(env, decode,
-                                                   decode->op[i].ptr,
-                                                   R_DS);
+            hwaddr = decode_linear_addr(env, decode,
+                                        (target_ulong) decode->op[i].ptr,
+                                        R_DS);
+            decode->op[i].ptr = (void *) (size_t) hwaddr;
             if (calc_val[i]) {
                 decode->op[i].val = read_val_ext(env, decode->op[i].ptr,
                                                  decode->operand_size);
@@ -537,8 +539,8 @@ static void exec_movs_single(struct CPUX86State *env, struct x86_decode *decode)
     dst_addr = linear_addr_size(ENV_GET_CPU(env), RDI(env), decode->addressing_size,
                                 R_ES);
 
-    val = read_val_ext(env, src_addr, decode->operand_size);
-    write_val_ext(env, dst_addr, val, decode->operand_size);
+    val = read_val_ext(env, (void *) (size_t) src_addr, decode->operand_size);
+    write_val_ext(env, (void *) (size_t) dst_addr, val, decode->operand_size);
 
     string_increment_reg(env, R_ESI, decode);
     string_increment_reg(env, R_EDI, decode);
@@ -565,9 +567,13 @@ static void exec_cmps_single(struct CPUX86State *env, struct x86_decode *decode)
                                 R_ES);
 
     decode->op[0].type = X86_VAR_IMMEDIATE;
-    decode->op[0].val = read_val_ext(env, src_addr, decode->operand_size);
+    decode->op[0].val = read_val_ext(env,
+                                     (void *) (size_t) src_addr,
+                                     decode->operand_size);
     decode->op[1].type = X86_VAR_IMMEDIATE;
-    decode->op[1].val = read_val_ext(env, dst_addr, decode->operand_size);
+    decode->op[1].val = read_val_ext(env,
+                                     (void *) (size_t) dst_addr,
+                                     decode->operand_size);
 
     EXEC_2OP_FLAGS_CMD(env, decode, -, SET_FLAGS_OSZAPC_SUB, false);
 

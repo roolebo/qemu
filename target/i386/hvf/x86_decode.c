@@ -397,7 +397,7 @@ static void fetch_moffs(CPUX86State *env, struct x86_decode *decode,
                         struct x86_decode_op *op)
 {
     op->type = X86_VAR_OFFSET;
-    op->ptr = decode_bytes(env, decode, decode->addressing_size);
+    op->ptr = (void *) decode_bytes(env, decode, decode->addressing_size);
 }
 
 static void decode_movgroup8(CPUX86State *env, struct x86_decode *decode)
@@ -1681,16 +1681,16 @@ void calc_modrm_operand16(CPUX86State *env, struct x86_decode *decode,
     }
 calc_addr:
     if (X86_DECODE_CMD_LEA == decode->cmd) {
-        op->ptr = (uint16_t)ptr;
+        op->ptr = (void *) (size_t) ptr;
     } else {
-        op->ptr = decode_linear_addr(env, decode, (uint16_t)ptr, seg);
+        op->ptr = (void *) (size_t) decode_linear_addr(env, decode, (uint16_t)ptr, seg);
     }
 }
 
-target_ulong get_reg_ref(CPUX86State *env, int reg, int rex, int is_extended,
-                         int size)
+void *get_reg_ref(CPUX86State *env, int reg, int rex, int is_extended,
+                  int size)
 {
-    target_ulong ptr = 0;
+    void *ptr = 0;
     int which = 0;
 
     if (is_extended) {
@@ -1702,15 +1702,15 @@ target_ulong get_reg_ref(CPUX86State *env, int reg, int rex, int is_extended,
     case 1:
         if (is_extended || reg < 4 || rex) {
             which = 1;
-            ptr = (target_ulong)&RL(env, reg);
+            ptr = &RL(env, reg);
         } else {
             which = 2;
-            ptr = (target_ulong)&RH(env, reg - 4);
+            ptr = &RH(env, reg - 4);
         }
         break;
     default:
         which = 3;
-        ptr = (target_ulong)&RRX(env, reg);
+        ptr = &RRX(env, reg);
         break;
     }
     return ptr;
@@ -1720,7 +1720,7 @@ target_ulong get_reg_val(CPUX86State *env, int reg, int rex, int is_extended,
                          int size)
 {
     target_ulong val = 0;
-    memcpy(&val, (void *)get_reg_ref(env, reg, rex, is_extended, size), size);
+    memcpy(&val, get_reg_ref(env, reg, rex, is_extended, size), size);
     return val;
 }
 
@@ -1786,9 +1786,9 @@ void calc_modrm_operand32(CPUX86State *env, struct x86_decode *decode,
     }
 
     if (X86_DECODE_CMD_LEA == decode->cmd) {
-        op->ptr = (uint32_t)ptr;
+        op->ptr = (void *) (size_t) ptr;
     } else {
-        op->ptr = decode_linear_addr(env, decode, (uint32_t)ptr, seg);
+        op->ptr = (void *) (size_t) decode_linear_addr(env, decode, (uint32_t)ptr, seg);
     }
 }
 
@@ -1816,9 +1816,9 @@ void calc_modrm_operand64(CPUX86State *env, struct x86_decode *decode,
     }
 
     if (X86_DECODE_CMD_LEA == decode->cmd) {
-        op->ptr = ptr;
+        op->ptr = (void *) (size_t) ptr;
     } else {
-        op->ptr = decode_linear_addr(env, decode, ptr, seg);
+        op->ptr = (void *) (size_t) decode_linear_addr(env, decode, ptr, seg);
     }
 }
 
