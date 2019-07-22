@@ -681,11 +681,44 @@ int hvf_vcpu_exec(CPUState *cpu)
         }
 
         hv_return_t r  = hv_vcpu_run(cpu->hvf_fd);
-        assert_hvf_ok(r);
 
         /* handle VMEXIT */
         uint64_t exit_reason = rvmcs(cpu->hvf_fd, VMCS_EXIT_REASON);
         uint64_t exit_qual = rvmcs(cpu->hvf_fd, VMCS_EXIT_QUALIFICATION);
+        if (r != HV_SUCCESS) {
+            uint64_t ins_err = rvmcs(cpu->hvf_fd, VMCS_INSTRUCTION_ERROR);
+            error_report("hv_vcpu_run failed");
+            error_report("exit reason:            0x%016llx", exit_reason);
+            error_report("exit qualification:     0x%016llx", exit_qual);
+            error_report("instruction error:      0x%016llx", ins_err);
+            if (exit_reason == EXIT_REASON_EPT_FAULT) {
+                uint64_t pri_proc_based_ctls = rvmcs(cpu->hvf_fd,
+                        VMCS_PRI_PROC_BASED_CTLS);
+                error_report("pri proc based ctls:    0x%016llx",
+                             pri_proc_based_ctls);
+                if (pri_proc_based_ctls &
+                    VMCS_PRI_PROC_BASED_CTLS_SEC_CONTROL) {
+                    uint64_t sec_proc_based_ctls = rvmcs(cpu->hvf_fd,
+                            VMCS_SEC_PROC_BASED_CTLS);
+                    error_report("sec proc based ctls:    0x%016llx",
+                                 sec_proc_based_ctls);
+                    if (sec_proc_based_ctls & VMCS_PRI_PROC_BASED2_CTLS_EPT_ENABLE) {
+                        uint64_t eptp = rvmcs(cpu->hvf_fd, VMCS_EPTP);
+                        error_report("eptp:                   0x%016llx", eptp);
+                        uint64_t gpa = rvmcs(cpu->hvf_fd,
+                                VMCS_GUEST_PHYSICAL_ADDRESS);
+                        error_report("gpa:                    0x%016llx", gpa);
+                    }
+                }
+                if (exit_qual & EPT_VIOLATION_GLA_VALID) {
+                    uint64_t gla = rvmcs(cpu->hvf_fd,
+                            VMCS_GUEST_LINEAR_ADDRESS);
+                    error_report("gla:                    0x%016llx", gla);
+                }
+            }
+        }
+        assert_hvf_ok(r);
+
         uint32_t ins_len = (uint32_t)rvmcs(cpu->hvf_fd,
                                            VMCS_EXIT_INSTRUCTION_LENGTH);
 

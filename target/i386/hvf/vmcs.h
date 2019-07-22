@@ -362,6 +362,7 @@
 #define VMCS_PRI_PROC_BASED_CTLS_SEC_CONTROL   (1 << 31)
 
 #define VMCS_PRI_PROC_BASED2_CTLS_APIC_ACCESSES (1 << 0)
+#define VMCS_PRI_PROC_BASED2_CTLS_EPT_ENABLE    (1 << 1)
 #define VMCS_PRI_PROC_BASED2_CTLS_X2APIC        (1 << 4)
 
 enum task_switch_reason {
