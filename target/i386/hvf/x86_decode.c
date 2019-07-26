@@ -2159,7 +2159,7 @@ const char *decode_cmd_to_string(enum x86_decode_cmd cmd)
         "FNSTSW", "FNSETPM", "FSAVE", "FRSTOR", "FXSAVE", "FXRSTOR", "FDIV",
         "FMUL", "FSUB", "FADD", "EMMS", "MFENCE", "SFENCE", "LFENCE",
         "PREFETCH", "FST", "FABS", "FUCOM", "FUCOMI", "FLDCW",
-        "FXCH", "FCHS", "FCMOV", "FRNDINT", "FXAM", "LAST"};
+        "FXCH", "FCHS", "FCMOV", "FRNDINT", "FXAM", "MOVUPS", "LAST"};
     return cmds[cmd];
 }
 

@@ -206,6 +206,9 @@ enum x86_decode_cmd {
     X86_DECODE_CMD_FRNDINT,
     X86_DECODE_CMD_FXAM,
 
+    /* SSE */
+    X86_DECODE_CMD_MOVUPS,
+
     X86_DECODE_CMD_LAST,
 };
 
