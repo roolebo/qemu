@@ -122,7 +122,7 @@ static inline void macvm_set_cr0(hv_vcpuid_t vcpu, uint64_t cr0)
     uint64_t efer = rvmcs(vcpu, VMCS_GUEST_IA32_EFER);
     uint64_t old_cr0 = rvmcs(vcpu, VMCS_GUEST_CR0);
 
-    if ((cr0 & CR0_PG) && (rvmcs(vcpu, VMCS_GUEST_CR4) & CR4_PAE) &&
+    if ((cr0 & CR0_PG_MASK) && (rvmcs(vcpu, VMCS_GUEST_CR4) & CR4_PAE) &&
         !(efer & MSR_EFER_LME)) {
         address_space_rw(&address_space_memory,
                          rvmcs(vcpu, VMCS_GUEST_CR3) & ~0x1f,
@@ -134,17 +134,17 @@ static inline void macvm_set_cr0(hv_vcpuid_t vcpu, uint64_t cr0)
         wvmcs(vcpu, VMCS_GUEST_PDPTE0 + i * 2, pdpte[i]);
     }
 
-    wvmcs(vcpu, VMCS_CR0_MASK, CR0_CD | CR0_NE | CR0_PG);
+    wvmcs(vcpu, VMCS_CR0_MASK, CR0_CD_MASK | CR0_NE_MASK | CR0_PG_MASK);
     wvmcs(vcpu, VMCS_CR0_SHADOW, cr0);
 
-    cr0 &= ~CR0_CD;
-    wvmcs(vcpu, VMCS_GUEST_CR0, cr0 | CR0_NE | CR0_ET);
+    cr0 &= ~CR0_CD_MASK;
+    wvmcs(vcpu, VMCS_GUEST_CR0, cr0 | CR0_NE_MASK | CR0_ET_MASK);
 
     if (efer & MSR_EFER_LME) {
-        if (!(old_cr0 & CR0_PG) && (cr0 & CR0_PG)) {
+        if (!(old_cr0 & CR0_PG_MASK) && (cr0 & CR0_PG_MASK)) {
             enter_long_mode(vcpu, cr0, efer);
         }
-        if (/*(old_cr0 & CR0_PG) &&*/ !(cr0 & CR0_PG)) {
+        if (/*(old_cr0 & CR0_PG_MASK) &&*/ !(cr0 & CR0_PG_MASK)) {
             exit_long_mode(vcpu, cr0, efer);
         }
     }
