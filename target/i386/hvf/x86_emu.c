@@ -677,6 +677,7 @@ void simulate_rdmsr(struct CPUState *cpu)
         break;
     case MSR_IA32_APICBASE:
         val = cpu_get_apic_base(X86_CPU(cpu)->apic_state);
+        printf("RD MSR_IA32_APICBASE: %08llx\n", val);
         break;
     case MSR_IA32_UCODE_REV:
         val = x86_cpu->ucode_rev;
@@ -773,6 +774,7 @@ void simulate_wrmsr(struct CPUState *cpu)
         break;
     case MSR_IA32_APICBASE:
         cpu_set_apic_base(X86_CPU(cpu)->apic_state, data);
+        printf("WR MSR_IA32_APICBASE: %08llx\n", data);
         break;
     case MSR_FSBASE:
         wvmcs(cpu->hvf_fd, VMCS_GUEST_FS_BASE, data);
