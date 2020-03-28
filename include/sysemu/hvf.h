@@ -30,6 +30,7 @@ uint32_t hvf_get_supported_cpuid(uint32_t func, uint32_t idx,
 #else
 #define hvf_enabled() 0
 #define hvf_get_supported_cpuid(func, idx, reg) 0
+typedef unsigned hv_vcpuid_t;
 #endif
 
 /* hvf_slot flags */
@@ -82,6 +83,7 @@ int hvf_sync_vcpus(void);
 
 int hvf_init_vcpu(CPUState *);
 int hvf_vcpu_exec(CPUState *);
+int hvf_vcpu_kick(CPUState *);
 int hvf_smp_cpu_exec(CPUState *);
 void hvf_cpu_synchronize_state(CPUState *);
 void hvf_cpu_synchronize_post_reset(CPUState *);

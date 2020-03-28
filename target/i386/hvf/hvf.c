@@ -957,6 +957,17 @@ int hvf_vcpu_exec(CPUState *cpu)
     return ret;
 }
 
+int hvf_vcpu_kick(CPUState *cpu)
+{
+    hv_return_t err;
+    err = hv_vcpu_interrupt(&cpu->hvf_fd, 1);
+    if (err) {
+        fprintf(stderr, "%s TBD", __func__);
+        exit(1);
+    }
+    return 0;
+}
+
 bool hvf_allowed;
 
 static int hvf_accel_init(MachineState *ms)
