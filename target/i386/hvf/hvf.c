@@ -73,6 +73,7 @@
 #include "target/i386/cpu.h"
 
 HVFState *hvf_state;
+pthread_key_t hvf_cpu;
 
 static void assert_hvf_ok(hv_return_t ret)
 {
@@ -458,8 +459,17 @@ void hvf_vcpu_destroy(CPUState *cpu)
     assert_hvf_ok(ret);
 }
 
-static void dummy_signal(int sig)
+static void hvf_handle_ipi(int sig)
 {
+    CPUState *cpu = pthread_getspecific(hvf_cpu);
+    X86CPU *x86_cpu = X86_CPU(cpu);
+    CPUX86State *env = &x86_cpu->env;
+
+    if (!atomic_xchg(&env->hvf_in_guest, false)) {
+        wvmcs(cpu->hvf_fd, VMCS_PIN_BASED_CTLS,
+              rvmcs(cpu->hvf_fd, VMCS_PIN_BASED_CTLS)
+                | VMCS_PIN_BASED_CTLS_VMX_PREEMPT_TIMER);
+    }
 }
 
 int hvf_init_vcpu(CPUState *cpu)
@@ -474,16 +484,24 @@ int hvf_init_vcpu(CPUState *cpu)
     struct sigaction sigact;
 
     memset(&sigact, 0, sizeof(sigact));
-    sigact.sa_handler = dummy_signal;
+    sigact.sa_handler = hvf_handle_ipi;
     sigaction(SIG_IPI, &sigact, NULL);
+
+    r = pthread_setspecific(hvf_cpu, cpu);
+    if (r) {
+        fprintf(stderr, "qemu:%s: %s", __func__, strerror(r));
+        exit(1);
+    }
 
     pthread_sigmask(SIG_BLOCK, NULL, &set);
     sigdelset(&set, SIG_IPI);
+    pthread_sigmask(SIG_SETMASK, &set, NULL);
 
     init_emu();
     init_decoder();
 
     hvf_state->hvf_caps = g_new0(struct hvf_vcpu_caps, 1);
+    env->hvf_in_guest = false;
     env->hvf_mmio_buf = g_new(char, 4096);
 
     r = hv_vcpu_create((hv_vcpuid_t *)&cpu->hvf_fd, HV_VCPU_DEFAULT);
@@ -529,6 +547,7 @@ int hvf_init_vcpu(CPUState *cpu)
     wvmcs(cpu->hvf_fd, VMCS_EXCEPTION_BITMAP, 0); /* Double fault */
 
     wvmcs(cpu->hvf_fd, VMCS_TPR_THRESHOLD, 0);
+    wvmcs(cpu->hvf_fd, VMCS_PREEMPTION_TIMER_VALUE, 0);
 
     x86cpu = X86_CPU(cpu);
     x86cpu->env.xsave_buf = qemu_memalign(4096, 4096);
@@ -631,7 +650,9 @@ int hvf_vcpu_exec(CPUState *cpu)
             return EXCP_HLT;
         }
 
+        atomic_mb_set(&env->hvf_in_guest, true);
         hv_return_t r  = hv_vcpu_run(cpu->hvf_fd);
+        atomic_mb_set(&env->hvf_in_guest, false);
         assert_hvf_ok(r);
 
         /* handle VMEXIT */
@@ -774,6 +795,10 @@ int hvf_vcpu_exec(CPUState *cpu)
             vmx_clear_nmi_window_exiting(cpu);
             ret = EXCP_INTERRUPT;
             break;
+        case EXIT_REASON_VMX_PREEMPT:
+            wvmcs(cpu->hvf_fd, VMCS_PIN_BASED_CTLS,
+                  rvmcs(cpu->hvf_fd, VMCS_PIN_BASED_CTLS)
+                    & ~VMCS_PIN_BASED_CTLS_VMX_PREEMPT_TIMER);
         case EXIT_REASON_EXT_INTR:
             /* force exit and allow io handling */
             ret = EXCP_INTERRUPT;
@@ -872,6 +897,22 @@ int hvf_vcpu_exec(CPUState *cpu)
     return ret;
 }
 
+void hvf_vcpu_kick(CPUState *cpu)
+{
+    hv_return_t err;
+
+    err = pthread_kill(cpu->thread->thread, SIG_IPI);
+    if (err) {
+        fprintf(stderr, "qemu:%s: %s", __func__, strerror(err));
+        exit(1);
+    }
+    err = hv_vcpu_interrupt(&cpu->hvf_fd, 1);
+    if (err) {
+        fprintf(stderr, "qemu:%s error %#x\n", __func__, err);
+        exit(1);
+    }
+}
+
 bool hvf_allowed;
 
 static int hvf_accel_init(MachineState *ms)
@@ -880,6 +921,14 @@ static int hvf_accel_init(MachineState *ms)
     hv_return_t ret;
     HVFState *s;
 
+    /* TODO add pthread_key_delete() */
+    ret = pthread_key_create(&hvf_cpu, NULL);
+    if (ret) {
+        fprintf(stderr, "qemu:%s: %s", __func__, strerror(ret));
+        exit(1);
+    }
+
+    /* TODO add hv_vm_unmap() and hv_vm_destroy() */
     ret = hv_vm_create(HV_VM_DEFAULT);
     assert_hvf_ok(ret);
 
