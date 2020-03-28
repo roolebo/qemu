@@ -1606,6 +1606,7 @@ typedef struct CPUX86State {
     struct kvm_nested_state *nested_state;
 #endif
 #if defined(CONFIG_HVF)
+    bool hvf_in_guest;
     HVFX86LazyFlags hvf_lflags;
     void *hvf_mmio_buf;
 #endif
