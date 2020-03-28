@@ -25,6 +25,11 @@ int hvf_vcpu_exec(CPUState *cpu)
     return -ENOSYS;
 }
 
+int hvf_vcpu_kick(CPUState *cpu)
+{
+    return -ENOSYS;
+}
+
 void hvf_vcpu_destroy(CPUState *cpu)
 {
 }
