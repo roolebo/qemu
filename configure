@@ -2140,7 +2140,6 @@ elif compile_prog "-Werror -fPIE -DPIE" "-pie"; then
 elif test "$pie" = "yes"; then
   error_exit "PIE not available due to missing toolchain support"
 else
-  echo "Disabling PIE due to missing toolchain support"
   pie="no"
 fi
 
