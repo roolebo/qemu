@@ -97,6 +97,8 @@ void update_apic_tpr(CPUState *);
 int hvf_put_registers(CPUState *);
 void vmx_clear_int_window_exiting(CPUState *cpu);
 
+int hvf_update_guest_debug(CPUState *);
+
 #define TYPE_HVF_ACCEL ACCEL_CLASS_NAME("hvf")
 
 #define HVF_STATE(obj) \

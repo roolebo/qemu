@@ -949,12 +949,28 @@ int hvf_vcpu_exec(CPUState *cpu)
             env->has_error_code = true;
             env->error_code = 0;
             break;
+        case EXIT_REASON_MTF:
+            ret = EXCP_DEBUG;
+            break;
         default:
             error_report("%llx: unhandled exit %llx", rip, exit_reason);
         }
     } while (ret == 0);
 
     return ret;
+}
+
+int hvf_update_guest_debug(CPUState *cpu)
+{
+    uint32_t pri_proc_ctls = rvmcs(cpu->hvf_fd, VMCS_PRI_PROC_BASED_CTLS);
+    if (cpu->singlestep_enabled) {
+        wvmcs(cpu->hvf_fd, VMCS_PRI_PROC_BASED_CTLS,
+              pri_proc_ctls | VMCS_PRI_PROC_BASED_CTLS_MTF);
+    } else {
+        wvmcs(cpu->hvf_fd, VMCS_PRI_PROC_BASED_CTLS,
+              pri_proc_ctls & ~VMCS_PRI_PROC_BASED_CTLS_MTF);
+    }
+    return 0;
 }
 
 bool hvf_allowed;
