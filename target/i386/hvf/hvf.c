@@ -904,6 +904,9 @@ int hvf_vcpu_exec(CPUState *cpu)
             env->has_error_code = true;
             env->error_code = 0;
             break;
+        case EXIT_REASON_MTF:
+            ret = EXCP_DEBUG;
+            break;
         default:
             error_report("%llx: unhandled exit %llx", rip, exit_reason);
         }
@@ -926,6 +929,31 @@ void hvf_vcpu_kick(CPUState *cpu)
         fprintf(stderr, "qemu:%s error %#x\n", __func__, err);
         exit(1);
     }
+}
+
+static void hvf_invoke_set_guest_debug(CPUState *cpu, run_on_cpu_data data)
+{
+    bool singlestep_enabled = *(bool *) data.host_ptr;
+    uint32_t pri_proc_ctls = rvmcs(cpu->hvf_fd, VMCS_PRI_PROC_BASED_CTLS);
+
+    if (singlestep_enabled) {
+        wvmcs(cpu->hvf_fd, VMCS_PRI_PROC_BASED_CTLS,
+              pri_proc_ctls | VMCS_PRI_PROC_BASED_CTLS_MTF);
+    } else {
+        wvmcs(cpu->hvf_fd, VMCS_PRI_PROC_BASED_CTLS,
+              pri_proc_ctls & ~VMCS_PRI_PROC_BASED_CTLS_MTF);
+    }
+}
+
+int hvf_update_guest_debug(CPUState *cpu)
+{
+    // XXX add hvf_debug_data
+    bool singlestep_enabled = cpu->singlestep_enabled;
+
+    run_on_cpu(cpu, hvf_invoke_set_guest_debug,
+               RUN_ON_CPU_HOST_PTR(&singlestep_enabled));
+
+    return 0;
 }
 
 bool hvf_allowed;
