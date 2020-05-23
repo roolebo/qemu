@@ -33,3 +33,8 @@ int hvf_vcpu_kick(CPUState *cpu)
 void hvf_vcpu_destroy(CPUState *cpu)
 {
 }
+
+int hvf_update_guest_debug(CPUState *cpu)
+{
+    return -ENOSYS;
+}

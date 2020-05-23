@@ -41,6 +41,8 @@ void hvf_cpu_synchronize_pre_loadvm(CPUState *);
 void hvf_vcpu_destroy(CPUState *);
 void hvf_reset_vcpu(CPUState *);
 
+int hvf_update_guest_debug(CPUState *);
+
 #define TYPE_HVF_ACCEL ACCEL_CLASS_NAME("hvf")
 
 #define HVF_STATE(obj) \
