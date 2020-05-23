@@ -282,15 +282,13 @@ void hvf_handle_io(CPUArchState *env, uint16_t port, void *buffer,
     }
 }
 
-/* TODO: synchronize vcpu state */
 static void do_hvf_cpu_synchronize_state(CPUState *cpu, run_on_cpu_data arg)
 {
     CPUState *cpu_state = cpu;
     if (cpu_state->vcpu_dirty == 0) {
         hvf_get_registers(cpu_state);
+        cpu_state->vcpu_dirty = 1;
     }
-
-    cpu_state->vcpu_dirty = 1;
 }
 
 void hvf_cpu_synchronize_state(CPUState *cpu_state)
