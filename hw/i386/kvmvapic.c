@@ -226,7 +226,7 @@ static int evaluate_tpr_instruction(VAPICROMState *s, X86CPU *cpu,
         return -1;
     }
 
-    if (kvm_enabled() && !kvm_irqchip_in_kernel()) {
+    if ((kvm_enabled() || hvf_enabled()) && !kvm_irqchip_in_kernel()) {
         /*
          * KVM without kernel-based TPR access reporting will pass an IP that
          * points after the accessing instruction. So we need to look backward
@@ -678,7 +678,7 @@ static void vapic_write(void *opaque, hwaddr addr, uint64_t data,
         }
         break;
     case 1:
-        if (kvm_enabled()) {
+        if (kvm_enabled() || hvf_enabled()) {
             /*
              * Disable triggering instruction in ROM by writing a NOP.
              *
