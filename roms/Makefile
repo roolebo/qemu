@@ -90,11 +90,13 @@ build-seabios-config-%: config.%
 	$(MAKE) -C seabios \
 		EXTRAVERSION=$(SEABIOS_EXTRAVERSION) \
 		CROSS_PREFIX=$(x86_64_cross_prefix) \
+		CPP=$(x86_64_cross_prefix)cpp \
 		KCONFIG_CONFIG=$(CURDIR)/seabios/builds/$*/.config \
 		OUT=$(CURDIR)/seabios/builds/$*/ oldnoconfig
 	$(MAKE) -C seabios \
 		EXTRAVERSION=$(SEABIOS_EXTRAVERSION) \
 		CROSS_PREFIX=$(x86_64_cross_prefix) \
+		CPP=$(x86_64_cross_prefix)cpp \
 		KCONFIG_CONFIG=$(CURDIR)/seabios/builds/$*/.config \
 		OUT=$(CURDIR)/seabios/builds/$*/ all
 
