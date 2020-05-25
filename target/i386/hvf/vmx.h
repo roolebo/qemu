@@ -172,7 +172,11 @@ static inline void macvm_set_rip(CPUState *cpu, uint64_t rip)
     uint64_t val;
 
     /* BUG, should take considering overlap.. */
+    printf("%s set VMCS RIP from %" PRIx64 " to %" PRIx64 "\n",
+           __func__, rreg(cpu->hvf_fd, HV_X86_RIP), rip);
     wreg(cpu->hvf_fd, HV_X86_RIP, rip);
+    printf("%s set ENV RIP from %" PRIx64 " to %" PRIx64 "\n",
+           __func__, env->eip, rip);
     env->eip = rip;
 
     /* after moving forward in rip, we need to clean INTERRUPTABILITY */

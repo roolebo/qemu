@@ -263,6 +263,8 @@ int hvf_put_registers(CPUState *cpu_state)
     wreg(cpu_state->hvf_fd, HV_X86_R14, env->regs[14]);
     wreg(cpu_state->hvf_fd, HV_X86_R15, env->regs[15]);
     wreg(cpu_state->hvf_fd, HV_X86_RFLAGS, env->eflags);
+    printf("%s set VMCS RIP from %" PRIx64 " to %" PRIx64 "\n",
+           __func__, rreg(cpu_state->hvf_fd, HV_X86_RIP), env->eip);
     wreg(cpu_state->hvf_fd, HV_X86_RIP, env->eip);
    
     wreg(cpu_state->hvf_fd, HV_X86_XCR0, env->xcr0);

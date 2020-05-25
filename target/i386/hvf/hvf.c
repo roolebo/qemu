@@ -723,6 +723,12 @@ int hvf_vcpu_exec(CPUState *cpu)
             return EXCP_HLT;
         }
 
+        printf("enter VMCS cs: %" PRIx64 " rip: %" PRIx64 "\n",
+               rreg(cpu->hvf_fd, HV_X86_CS),
+               rreg(cpu->hvf_fd, HV_X86_RIP));
+        printf("enter ENV cs: %" PRIx64 " rip: %" PRIx64 "\n",
+               env->segs[R_CS].base,
+               env->eip);
         hv_return_t r  = hv_vcpu_run(cpu->hvf_fd);
         assert_hvf_ok(r);
 
@@ -744,6 +750,8 @@ int hvf_vcpu_exec(CPUState *cpu)
         current_cpu = cpu;
 
         ret = 0;
+        printf("rip %" PRIx64 " exit_reason %" PRIx64 " from cpu %d\n",
+               rip, exit_reason, cpu->cpu_index);
         switch (exit_reason) {
         case EXIT_REASON_HLT: {
             macvm_set_rip(cpu, rip + ins_len);
@@ -962,6 +970,12 @@ int hvf_vcpu_exec(CPUState *cpu)
         default:
             error_report("%llx: unhandled exit %llx", rip, exit_reason);
         }
+        printf("exit VMCS cs: %" PRIx64 " rip: %" PRIx64 "\n",
+               rreg(cpu->hvf_fd, HV_X86_CS),
+               rreg(cpu->hvf_fd, HV_X86_RIP));
+        printf("exit ENV cs: %" PRIx64 " rip: %" PRIx64 "\n",
+               env->segs[R_CS].base,
+               env->eip);
     } while (ret == 0);
 
     return ret;
