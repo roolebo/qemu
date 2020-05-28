@@ -423,6 +423,15 @@ bool hvf_inject_interrupts(CPUState *cpu_state)
     if (cpu_state->interrupt_request & CPU_INTERRUPT_HARD) {
         vmx_set_int_window_exiting(cpu_state);
     }
+
+    env->exception_nr = -1;
+    env->exception_pending = 0;
+    env->exception_injected = 0;
+    env->interrupt_injected = -1;
+    env->nmi_injected = false;
+    env->ins_len = 0;
+    env->has_error_code = false;
+
     return (cpu_state->interrupt_request
             & (CPU_INTERRUPT_INIT | CPU_INTERRUPT_TPR));
 }

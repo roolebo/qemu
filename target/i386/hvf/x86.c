@@ -97,6 +97,10 @@ bool x86_write_segment_descriptor(struct CPUState *cpu,
         return false;
     }
     vmx_write_mem(cpu, base + sel.index * 8, desc, sizeof(*desc));
+    X86CPU *x86_cpu = X86_CPU(cpu);
+    CPUX86State *env = &x86_cpu->env;
+    if (env->exception_nr != -1)
+        return false;
     return true;
 }
 

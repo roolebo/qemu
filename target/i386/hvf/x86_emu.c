@@ -474,6 +474,8 @@ static inline void string_rep(struct CPUX86State *env, struct x86_decode *decode
     target_ulong rcx = read_reg(env, R_ECX, decode->addressing_size);
     while (rcx--) {
         func(env, decode);
+        if (env->exception_nr != -1)
+            break;
         write_reg(env, R_ECX, rcx, decode->addressing_size);
         if ((PREFIX_REP == rep) && !get_ZF(env)) {
             break;
@@ -493,6 +495,8 @@ static void exec_ins_single(struct CPUX86State *env, struct x86_decode *decode)
                   decode->operand_size, 1);
     vmx_write_mem(env_cpu(env), addr, env->hvf_mmio_buf,
                   decode->operand_size);
+    if (env->exception_nr != -1)
+        return;
 
     string_increment_reg(env, R_EDI, decode);
 }
@@ -599,6 +603,8 @@ static void exec_stos_single(struct CPUX86State *env, struct x86_decode *decode)
                             decode->addressing_size, R_ES);
     val = read_reg(env, R_EAX, decode->operand_size);
     vmx_write_mem(env_cpu(env), addr, &val, decode->operand_size);
+    if (env->exception_nr != -1)
+        return;
 
     string_increment_reg(env, R_EDI, decode);
 }
@@ -611,6 +617,8 @@ static void exec_stos(struct CPUX86State *env, struct x86_decode *decode)
     } else {
         exec_stos_single(env, decode);
     }
+    if (env->exception_nr != -1)
+        return;
 
     env->eip += decode->len;
 }
