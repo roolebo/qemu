@@ -87,7 +87,7 @@ void hvf_handle_io(struct CPUState *cpu, uint16_t port, void *data,
         break;                                      \
     }                                               \
     default:                                        \
-        VM_PANIC("bad size\n");                    \
+        VM_PANIC(env_cpu(env), "bad size\n");       \
     }                                                   \
 }                                                       \
 
@@ -216,7 +216,7 @@ target_ulong read_val_ext(struct CPUX86State *env, target_ulong ptr, int size)
         val = *(uint64_t *)mmio_ptr;
         break;
     default:
-        VM_PANIC("bad size\n");
+        VM_PANIC(env_cpu(env), "bad size\n");
         break;
     }
     return val;
@@ -233,7 +233,7 @@ static void fetch_operands(struct CPUX86State *env, struct x86_decode *decode,
         case X86_VAR_IMMEDIATE:
             break;
         case X86_VAR_REG:
-            VM_PANIC_ON(!decode->op[i].ptr);
+            VM_PANIC_ON(env_cpu(env), !decode->op[i].ptr);
             if (calc_val[i]) {
                 decode->op[i].val = read_val_from_reg(decode->op[i].ptr,
                                                       decode->operand_size);
@@ -328,7 +328,7 @@ static void exec_neg(struct CPUX86State *env, struct x86_decode *decode)
     } else if (1 == decode->operand_size) {
         SET_FLAGS_OSZAPC_SUB8(env, 0, 0 - val, val);
     } else {
-        VM_PANIC("bad op size\n");
+        VM_PANIC(env_cpu(env), "bad op size\n");
     }
 
     /*lflags_to_rflags(env);*/
@@ -413,7 +413,7 @@ static void exec_out(struct CPUX86State *env, struct x86_decode *decode)
                       decode->operand_size, 1);
         break;
     default:
-        VM_PANIC("Bad out opcode\n");
+        VM_PANIC(env_cpu(env), "Bad out opcode\n");
         break;
     }
     env->eip += decode->len;
@@ -448,7 +448,7 @@ static void exec_in(struct CPUX86State *env, struct x86_decode *decode)
 
         break;
     default:
-        VM_PANIC("Bad in opcode\n");
+        VM_PANIC(env_cpu(env), "Bad in opcode\n");
         break;
     }
 
@@ -875,7 +875,7 @@ static void do_bt(struct CPUX86State *env, struct x86_decode *decode, int flag)
     bool cf;
     int mask = (4 == decode->operand_size) ? 0x1f : 0xf;
 
-    VM_PANIC_ON(decode->rex.rex);
+    VM_PANIC_ON(env_cpu(env), decode->rex.rex);
 
     fetch_operands(env, decode, 2, false, true, false);
     index = decode->op[1].val & mask;
@@ -888,7 +888,7 @@ static void do_bt(struct CPUX86State *env, struct x86_decode *decode, int flag)
             displacement = ((int16_t) (decode->op[1].val & 0xfff0)) / 16;
             decode->op[0].ptr += 2 * displacement;
         } else {
-            VM_PANIC("bt 64bit\n");
+            VM_PANIC(env_cpu(env), "bt 64bit\n");
         }
     }
     decode->op[0].val = read_val_ext(env, decode->op[0].ptr,

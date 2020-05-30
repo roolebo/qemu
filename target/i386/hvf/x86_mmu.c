@@ -154,9 +154,9 @@ static inline uint64_t pse_pte_to_page(uint64_t pte)
     return ((pte & 0x1fe000) << 19) | (pte & 0xffc00000);
 }
 
-static inline uint64_t large_page_gpa(struct gpt_translation *pt, bool pae)
+static inline uint64_t large_page_gpa(CPUState *cs, struct gpt_translation *pt, bool pae)
 {
-    VM_PANIC_ON(!pte_large_page(pt->pte[1]))
+    VM_PANIC_ON(cs, !pte_large_page(pt->pte[1]))
     /* 2Mb large page  */
     if (pae) {
         return (pt->pte[1] & PAE_PTE_LARGE_PAGE_MASK) | (pt->gva & 0x1fffff);
@@ -200,7 +200,7 @@ static bool walk_gpt(struct CPUState *cpu, target_ulong addr, int err_code,
     if (!is_large) {
         pt->gpa = (pt->pte[0] & page_mask) | (pt->gva & 0xfff);
     } else {
-        pt->gpa = large_page_gpa(pt, pae);
+        pt->gpa = large_page_gpa(cpu, pt, pae);
     }
 
     return true;
@@ -264,7 +264,7 @@ void vmx_read_mem(struct CPUState *cpu, void *data, target_ulong gva, int bytes)
         int copy = MIN(bytes, 0x1000 - (gva & 0xfff));
 
         if (!mmu_gva_to_gpa(cpu, gva, &gpa)) {
-            VM_PANIC_EX("%s: mmu_gva_to_gpa %llx failed\n", __func__, gva);
+            VM_PANIC_EX(cpu, "%s: mmu_gva_to_gpa %llx failed\n", __func__, gva);
         }
         address_space_read(&address_space_memory, gpa, MEMTXATTRS_UNSPECIFIED,
                            data, copy);

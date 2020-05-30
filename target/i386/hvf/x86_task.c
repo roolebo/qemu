@@ -149,12 +149,12 @@ void vmx_handle_task_switch(CPUState *cpu, x68_segment_selector tss_sel, int rea
         dpl = task_gate_desc.dpl;
         x68_segment_selector cs = vmx_read_segment_selector(cpu, R_CS);
         if (tss_sel.rpl > dpl || cs.rpl > dpl)
-            ;//DPRINTF("emulate_gp");
+            VM_PANIC(env_cpu(env), "emulate_gp");
     }
 
     desc_limit = x86_segment_limit(&next_tss_desc);
     if (!next_tss_desc.p || ((desc_limit < 0x67 && (next_tss_desc.type & 8)) || desc_limit < 0x2b)) {
-        VM_PANIC("emulate_ts");
+        VM_PANIC(env_cpu(env), "emulate_ts");
     }
 
     if (reason == TSR_IRET || reason == TSR_JMP) {
@@ -177,7 +177,7 @@ void vmx_handle_task_switch(CPUState *cpu, x68_segment_selector tss_sel, int rea
         ret = task_switch_32(cpu, tss_sel, old_tss_sel, old_tss_base, &next_tss_desc);
     else
         //ret = task_switch_16(cpu, tss_sel, old_tss_sel, old_tss_base, &next_tss_desc);
-        VM_PANIC("task_switch_16");
+        VM_PANIC(env_cpu(env), "task_switch_16");
 
     macvm_set_cr0(cpu->hvf_fd, rvmcs(cpu->hvf_fd, VMCS_GUEST_CR0) | CR0_TS);
     x86_segment_descriptor_to_vmx(cpu, tss_sel, &next_tss_desc, &vmx_seg);

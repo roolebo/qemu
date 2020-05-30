@@ -34,7 +34,7 @@ static void decode_invalid(CPUX86State *env, struct x86_decode *decode)
         printf("%x ", decode->opcode[i]);
     }
     printf("\n");
-    VM_PANIC("decoder failed\n");
+    VM_PANIC(env_cpu(env), "decoder failed\n");
 }
 
 uint64_t sign(uint64_t val, int size)
@@ -616,11 +616,11 @@ static void decode_aegroup(CPUX86State *env, struct x86_decode *decode)
         if (decode->modrm.modrm == 0xe8) {
             decode->cmd = X86_DECODE_CMD_LFENCE;
         } else {
-            VM_PANIC("xrstor");
+            VM_PANIC(env_cpu(env), "xrstor");
         }
         break;
     case 6:
-        VM_PANIC_ON(decode->modrm.modrm != 0xf0);
+        VM_PANIC_ON(env_cpu(env), decode->modrm.modrm != 0xf0);
         decode->cmd = X86_DECODE_CMD_MFENCE;
         break;
     case 7:
@@ -631,7 +631,7 @@ static void decode_aegroup(CPUX86State *env, struct x86_decode *decode)
         }
         break;
     default:
-        VM_PANIC_EX("0xae: reg %d\n", decode->modrm.reg);
+        VM_PANIC_EX(env_cpu(env), "0xae: reg %d\n", decode->modrm.reg);
         break;
     }
 }
@@ -655,14 +655,14 @@ static void decode_d9_4(CPUX86State *env, struct x86_decode *decode)
         decode->cmd = X86_DECODE_CMD_FABS;
         break;
     case 0xe4:
-        VM_PANIC("FTST");
+        VM_PANIC(env_cpu(env), "FTST");
         break;
     case 0xe5:
         /* FXAM */
         decode->cmd = X86_DECODE_CMD_FXAM;
         break;
     default:
-        VM_PANIC("FLDENV");
+        VM_PANIC(env_cpu(env), "FLDENV");
         break;
     }
 }
@@ -671,15 +671,18 @@ static void decode_db_4(CPUX86State *env, struct x86_decode *decode)
 {
     switch (decode->modrm.modrm) {
     case 0xe0:
-        VM_PANIC_EX("unhandled FNENI: %x %x\n", decode->opcode[0],
+        VM_PANIC_EX(env_cpu(env),
+                    "unhandled FNENI: %x %x\n", decode->opcode[0],
                     decode->modrm.modrm);
         break;
     case 0xe1:
-        VM_PANIC_EX("unhandled FNDISI: %x %x\n", decode->opcode[0],
+        VM_PANIC_EX(env_cpu(env),
+                    "unhandled FNDISI: %x %x\n", decode->opcode[0],
                     decode->modrm.modrm);
         break;
     case 0xe2:
-        VM_PANIC_EX("unhandled FCLEX: %x %x\n", decode->opcode[0],
+        VM_PANIC_EX(env_cpu(env),
+                    "unhandled FCLEX: %x %x\n", decode->opcode[0],
                     decode->modrm.modrm);
         break;
     case 0xe3:
@@ -689,7 +692,8 @@ static void decode_db_4(CPUX86State *env, struct x86_decode *decode)
         decode->cmd = X86_DECODE_CMD_FNSETPM;
         break;
     default:
-        VM_PANIC_EX("unhandled fpu opcode: %x %x\n", decode->opcode[0],
+        VM_PANIC_EX(env_cpu(env),
+                    "unhandled fpu opcode: %x %x\n", decode->opcode[0],
                     decode->modrm.modrm);
         break;
     }
@@ -1840,7 +1844,7 @@ void calc_modrm_operand(CPUX86State *env, struct x86_decode *decode,
         calc_modrm_operand64(env, decode, op);
         break;
     default:
-        VM_PANIC_EX("unsupported address size %d\n", decode->addressing_size);
+        VM_PANIC_EX(env_cpu(env), "unsupported address size %d\n", decode->addressing_size);
         break;
     }
 }

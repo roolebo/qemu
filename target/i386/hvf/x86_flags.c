@@ -71,7 +71,7 @@
     } else if ((size) == 8)  { \
         temp = ((lf_carries) & (LF_MASK_AF)) | ((lf_carries) << 24); \
     } else { \
-        VM_PANIC("unimplemented");  \
+        VM_PANIC(env_cpu(env), "unimplemented");  \
     } \
     env->hvf_lflags.auxbits = (target_ulong)(uint32_t)temp; \
 }
@@ -98,7 +98,7 @@
     } else if ((size) == 8) { \
         temp = ((lf_carries) & (LF_MASK_AF)) | ((lf_carries) << 24); \
     } else { \
-        VM_PANIC("unimplemented");      \
+        VM_PANIC(env_cpu(env), "unimplemented");      \
     } \
     env->hvf_lflags.result = (target_ulong)(int##size##_t)(lf_result); \
     target_ulong delta_c = (env->hvf_lflags.auxbits ^ temp) & LF_MASK_CF; \
