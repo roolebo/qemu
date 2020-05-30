@@ -301,7 +301,19 @@ void hvf_cpu_synchronize_state(CPUState *cpu_state)
 static void do_hvf_cpu_synchronize_post_reset(CPUState *cpu, run_on_cpu_data arg)
 {
     CPUState *cpu_state = cpu;
+    uint64_t pdpte[4] = {0, 0, 0, 0};
+    int i;
+
+    /* Reset LMA */
+    wvmcs(cpu->hvf_fd, VMCS_ENTRY_CTLS, 0);
+
+    /* Initialize PDPTE */
+    for (i = 0; i < 4; i++) {
+        wvmcs(cpu->hvf_fd, VMCS_GUEST_PDPTE0 + i * 2, pdpte[i]);
+    }
+
     hvf_put_registers(cpu_state);
+
     cpu_state->vcpu_dirty = false;
 }
 
@@ -449,21 +461,6 @@ static MemoryListener hvf_memory_listener = {
     .log_stop = hvf_log_stop,
     .log_sync = hvf_log_sync,
 };
-
-void hvf_reset_vcpu(CPUState *cpu) {
-    uint64_t pdpte[4] = {0, 0, 0, 0};
-    int i;
-
-    /* TODO: this shouldn't be needed; there is already a call to
-     * cpu_synchronize_all_post_reset in vl.c
-     */
-    wvmcs(cpu->hvf_fd, VMCS_ENTRY_CTLS, 0);
-
-    /* Initialize PDPTE */
-    for (i = 0; i < 4; i++) {
-        wvmcs(cpu->hvf_fd, VMCS_GUEST_PDPTE0 + i * 2, pdpte[i]);
-    }
-}
 
 void hvf_vcpu_destroy(CPUState *cpu)
 {

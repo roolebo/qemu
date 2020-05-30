@@ -39,7 +39,6 @@ void hvf_cpu_synchronize_post_reset(CPUState *);
 void hvf_cpu_synchronize_post_init(CPUState *);
 void hvf_cpu_synchronize_pre_loadvm(CPUState *);
 void hvf_vcpu_destroy(CPUState *);
-void hvf_reset_vcpu(CPUState *);
 
 int hvf_update_guest_debug(CPUState *);
 
