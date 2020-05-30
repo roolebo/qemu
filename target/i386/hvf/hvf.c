@@ -307,11 +307,6 @@ static void do_hvf_cpu_synchronize_post_reset(CPUState *cpu, run_on_cpu_data arg
     /* Reset LMA */
     wvmcs(cpu->hvf_fd, VMCS_ENTRY_CTLS, 0);
 
-    /* Initialize PDPTE */
-    for (i = 0; i < 4; i++) {
-        wvmcs(cpu->hvf_fd, VMCS_GUEST_PDPTE0 + i * 2, pdpte[i]);
-    }
-
     hvf_put_registers(cpu_state);
 
     cpu_state->vcpu_dirty = false;
