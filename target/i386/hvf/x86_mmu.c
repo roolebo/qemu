@@ -237,7 +237,7 @@ void vmx_write_mem(struct CPUState *cpu, target_ulong gva, void *data, int bytes
 
         if (!mmu_gva_to_gpa(cpu, gva, &gpa)) {
             CPUX86State *env = &X86_CPU(cpu)->env;
-            //VM_PANIC_EX("%s: mmu_gva_to_gpa %llx failed\n", __func__, gva);
+            VM_PANIC_EX(cpu, "%s: mmu_gva_to_gpa %llx failed\n", __func__, gva);
             printf("%s: mmu_gva_to_gpa %llx failed\n", __func__, gva);
             //env->exception_injected = 1;
             env->exception_nr = EXCP0D_GPF;
