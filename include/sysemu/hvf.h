@@ -41,6 +41,10 @@ void hvf_cpu_synchronize_pre_loadvm(CPUState *);
 void hvf_vcpu_destroy(CPUState *);
 
 int hvf_update_guest_debug(CPUState *);
+#ifdef NEED_CPU_H
+#include "cpu.h"
+int hvf_insert_breakpoint(CPUState *, target_ulong, target_ulong, int);
+#endif /* NEED_CPU_H */
 
 #define TYPE_HVF_ACCEL ACCEL_CLASS_NAME("hvf")
 

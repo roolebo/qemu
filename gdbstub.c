@@ -1007,8 +1007,11 @@ static int gdb_breakpoint_insert(int type, target_ulong addr, target_ulong len)
     CPUState *cpu;
     int err = 0;
 
+    printf("%s type %d addr %" PRIx64 " len %" PRIx64 "\n", __func__, type, addr, len);
     if (kvm_enabled()) {
         return kvm_insert_breakpoint(gdbserver_state.c_cpu, addr, len, type);
+    } else if (hvf_enabled()) {
+        return hvf_insert_breakpoint(gdbserver_state.c_cpu, addr, len, type);
     }
 
     switch (type) {

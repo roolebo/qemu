@@ -247,6 +247,10 @@ typedef union IcountDecr {
 typedef struct CPUBreakpoint {
     vaddr pc;
     int flags; /* BP_* */
+#ifdef CONFIG_HVF
+    vaddr saved_insn;
+    int use_count;
+#endif /* CONFIG_HVF */
     QTAILQ_ENTRY(CPUBreakpoint) entry;
 } CPUBreakpoint;
 

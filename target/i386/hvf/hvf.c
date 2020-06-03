@@ -52,6 +52,7 @@
 
 #include "sysemu/hvf.h"
 #include "sysemu/runstate.h"
+#include "exec/gdbstub.h"
 #include "hvf-i386.h"
 #include "vmcs.h"
 #include "vmx.h"
@@ -535,7 +536,7 @@ int hvf_init_vcpu(CPUState *cpu)
 
     wvmcs(cpu->hvf_fd, VMCS_ENTRY_CTLS, cap2ctrl(hvf_state->hvf_caps->vmx_cap_entry,
           0));
-    wvmcs(cpu->hvf_fd, VMCS_EXCEPTION_BITMAP, 0); /* Double fault */
+    wvmcs(cpu->hvf_fd, VMCS_EXCEPTION_BITMAP, 0xffffffff);//0 | (1 << 1) | (1 << 3)); // #DB and #BP
 
     wvmcs(cpu->hvf_fd, VMCS_TPR_THRESHOLD, 0);
 
@@ -571,6 +572,7 @@ static void hvf_store_events(CPUState *cpu, uint32_t ins_len, uint64_t idtvec_in
     env->ins_len = 0;
     env->has_error_code = false;
     if (idtvec_info & VMCS_IDT_VEC_VALID) {
+        printf("IDT VEC TYPE: %" PRIx64 "\n", idtvec_info & VMCS_IDT_VEC_TYPE);
         switch (idtvec_info & VMCS_IDT_VEC_TYPE) {
         case VMCS_IDT_VEC_HWINTR:
         case VMCS_IDT_VEC_SWINTR:
@@ -583,12 +585,18 @@ static void hvf_store_events(CPUState *cpu, uint32_t ins_len, uint64_t idtvec_in
         case VMCS_IDT_VEC_SWEXCEPTION:
             env->exception_nr = idtvec_info & VMCS_IDT_VEC_VECNUM;
             env->exception_injected = 1;
+            printf("#BP EXCEPTION %d\n", env->exception_nr);
             break;
         case VMCS_IDT_VEC_PRIV_SWEXCEPTION:
+            env->exception_nr = idtvec_info & VMCS_IDT_VEC_VECNUM;
+            env->exception_injected = 1;
+            printf("#DB EXCEPTION %d\n", env->exception_nr);
+            break;
         default:
             abort();
         }
         if ((idtvec_info & VMCS_IDT_VEC_TYPE) == VMCS_IDT_VEC_SWEXCEPTION ||
+            /* PRIV SW EXCEPTION ? */
             (idtvec_info & VMCS_IDT_VEC_TYPE) == VMCS_IDT_VEC_SWINTR) {
             env->ins_len = ins_len;
         }
@@ -649,7 +657,8 @@ int hvf_vcpu_exec(CPUState *cpu)
         uint32_t ins_len = (uint32_t)rvmcs(cpu->hvf_fd,
                                            VMCS_EXIT_INSTRUCTION_LENGTH);
 
-        uint64_t idtvec_info = rvmcs(cpu->hvf_fd, VMCS_IDT_VECTORING_INFO);
+        //uint64_t idtvec_info = rvmcs(cpu->hvf_fd, VMCS_IDT_VECTORING_INFO);
+        uint64_t idtvec_info = rvmcs(cpu->hvf_fd, VMCS_EXIT_INTR_INFO);
 
         hvf_store_events(cpu, ins_len, idtvec_info);
         rip = rreg(cpu->hvf_fd, HV_X86_RIP);
@@ -662,6 +671,20 @@ int hvf_vcpu_exec(CPUState *cpu)
 
         ret = 0;
         switch (exit_reason) {
+        case EXIT_REASON_EXCEPTION: {
+            printf("%s: exception %d at %" PRIx64 "\n", __func__, env->exception_nr, rip);
+            if (env->exception_injected && env->exception_nr == 0x1) {
+                printf("#DB\n");
+                ret = EXCP_DEBUG;
+                break;
+            } else if (env->exception_injected && env->exception_nr == 0x3) {
+                printf("#BP\n");
+                ret = EXCP_DEBUG;
+                break;
+            }
+            printf("Uknown exception: %d\n", env->exception_nr);
+            exit(1);
+        }
         case EXIT_REASON_HLT: {
             macvm_set_rip(cpu, rip + ins_len);
             if (!((cpu->interrupt_request & CPU_INTERRUPT_HARD) &&
@@ -918,6 +941,66 @@ int hvf_update_guest_debug(CPUState *cpu)
     run_on_cpu(cpu, hvf_invoke_set_guest_debug,
                RUN_ON_CPU_HOST_PTR(&singlestep_enabled));
 
+    return 0;
+}
+
+static int hvf_insert_sw_breakpoint(CPUState *cs, struct CPUBreakpoint *bp)
+{
+    //static const uint8_t int1 = 0xf1;
+    static const uint8_t int3 = 0xcc;
+
+    if (cpu_memory_rw_debug(cs, bp->pc, (uint8_t *)&bp->saved_insn, 1, 0) ||
+        cpu_memory_rw_debug(cs, bp->pc, (uint8_t *)&int3, 1, 1)) {
+        return -EINVAL;
+    }
+    uint8_t byte;
+    cpu_memory_rw_debug(cs, bp->pc, (uint8_t *)&byte, 1, 0);
+    printf("%s: %#x is written at %#" VADDR_PRIx "\n", __func__, byte, bp->pc);
+    return 0;
+}
+
+int hvf_insert_breakpoint(CPUState *cpu, target_ulong addr,
+                          target_ulong len, int type)
+{
+    //struct kvm_sw_breakpoint *bp;
+    int err;
+
+    /*
+    if (type == GDB_BREAKPOINT_SW) {
+    */
+        CPUBreakpoint *bp;
+
+        QTAILQ_FOREACH(bp, &cpu->breakpoints, entry) {
+            if (bp->pc == addr) {
+                bp->use_count++;
+                return 0;
+            }
+        }
+        bp = g_malloc(sizeof(*bp));
+        bp->pc = addr;
+        bp->use_count = 1;
+        bp->flags = BP_GDB; //TODO flags HW/SW
+
+        err = hvf_insert_sw_breakpoint(cpu, bp);
+        if (err) {
+            g_free(bp);
+            return err;
+        }
+
+        /* keep all GDB-injected breakpoints in front */
+        QTAILQ_INSERT_HEAD(&cpu->breakpoints, bp, entry);
+        /*
+    } else {
+        return -EINVAL;
+    }
+    */
+
+    CPU_FOREACH(cpu) {
+        err = hvf_update_guest_debug(cpu);
+        if (err) {
+            return err;
+        }
+    }
     return 0;
 }
 
