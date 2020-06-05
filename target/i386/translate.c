@@ -7583,7 +7583,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
         CASE_MODRM_OP(4): /* smsw */
             gen_svm_check_intercept(s, pc_start, SVM_EXIT_READ_CR0);
             tcg_gen_ld_tl(s->T0, cpu_env, offsetof(CPUX86State, cr[0]));
-            if (CODE64(s)) {
+            if (CODE64(s) || s->dflag == MO_32) {
                 mod = (modrm >> 6) & 3;
                 ot = (mod != 3 ? MO_16 : s->dflag);
             } else {
