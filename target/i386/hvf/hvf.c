@@ -919,8 +919,12 @@ int hvf_vcpu_kick(CPUState *cpu)
     return 0;
 }
 
+static CPUBreakpoint hwbp;
+
 static void hvf_invoke_set_guest_debug(CPUState *cpu, run_on_cpu_data data)
 {
+    X86CPU *x86_cpu = X86_CPU(cpu);
+    CPUX86State *env = &x86_cpu->env;
     bool singlestep_enabled = *(bool *) data.host_ptr;
     uint32_t pri_proc_ctls = rvmcs(cpu->hvf_fd, VMCS_PRI_PROC_BASED_CTLS);
 
@@ -930,6 +934,23 @@ static void hvf_invoke_set_guest_debug(CPUState *cpu, run_on_cpu_data data)
     } else {
         wvmcs(cpu->hvf_fd, VMCS_PRI_PROC_BASED_CTLS,
               pri_proc_ctls & ~VMCS_PRI_PROC_BASED_CTLS_MTF);
+    }
+
+    if (hwbp.flags & BP_GDB) {
+        int n = 0;
+        int type = 0;
+        int len = 0;
+        env->dr[n] = hwbp.pc;
+        env->dr[7] = 0x0600;
+        env->dr[7] |= (2 << (n * 2)) |
+            (type << (16 + n*4)) |
+            (len << (18 + n*4));
+            //(type_code[hw_breakpoint[n].type] << (16 + n*4)) |
+            //((uint32_t)len_code[hw_breakpoint[n].len] << (18 + n*4));
+        wreg(cpu->hvf_fd, HV_X86_DR0, env->dr[0]);
+        wreg(cpu->hvf_fd, HV_X86_DR7, env->dr[7]);
+    } else {
+        env->dr[7] = 0x0000;
     }
 }
 
@@ -965,9 +986,7 @@ int hvf_insert_breakpoint(CPUState *cpu, target_ulong addr,
     //struct kvm_sw_breakpoint *bp;
     int err;
 
-    /*
     if (type == GDB_BREAKPOINT_SW) {
-    */
         CPUBreakpoint *bp;
 
         QTAILQ_FOREACH(bp, &cpu->breakpoints, entry) {
@@ -989,11 +1008,31 @@ int hvf_insert_breakpoint(CPUState *cpu, target_ulong addr,
 
         /* keep all GDB-injected breakpoints in front */
         QTAILQ_INSERT_HEAD(&cpu->breakpoints, bp, entry);
-        /*
     } else {
-        return -EINVAL;
+        hwbp.pc = addr;
+        hwbp.flags = BP_GDB; //TODO flags HW/SW
     }
-    */
+
+    CPU_FOREACH(cpu) {
+        err = hvf_update_guest_debug(cpu);
+        if (err) {
+            return err;
+        }
+    }
+    return 0;
+}
+
+int hvf_remove_breakpoint(CPUState *cpu, target_ulong addr,
+                          target_ulong len, int type)
+{
+    int err;
+
+    if (type == GDB_BREAKPOINT_SW) {
+        return -EINVAL;
+    } else {
+        hwbp.pc = addr;
+        hwbp.flags &= ~BP_GDB; //TODO flags HW/SW
+    }
 
     CPU_FOREACH(cpu) {
         err = hvf_update_guest_debug(cpu);

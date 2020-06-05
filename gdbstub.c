@@ -1049,6 +1049,8 @@ static int gdb_breakpoint_remove(int type, target_ulong addr, target_ulong len)
 
     if (kvm_enabled()) {
         return kvm_remove_breakpoint(gdbserver_state.c_cpu, addr, len, type);
+    } else if (hvf_enabled()) {
+        return hvf_remove_breakpoint(gdbserver_state.c_cpu, addr, len, type);
     }
 
     switch (type) {
