@@ -536,7 +536,7 @@ int hvf_init_vcpu(CPUState *cpu)
 
     wvmcs(cpu->hvf_fd, VMCS_ENTRY_CTLS, cap2ctrl(hvf_state->hvf_caps->vmx_cap_entry,
           0));
-    wvmcs(cpu->hvf_fd, VMCS_EXCEPTION_BITMAP, 0xffffffff);//0 | (1 << 1) | (1 << 3)); // #DB and #BP
+    wvmcs(cpu->hvf_fd, VMCS_EXCEPTION_BITMAP, (1 << 3) | (1 << 1)); // #DB and #BP
 
     wvmcs(cpu->hvf_fd, VMCS_TPR_THRESHOLD, 0);
 
@@ -921,10 +921,26 @@ int hvf_vcpu_kick(CPUState *cpu)
 
 static CPUBreakpoint hwbp;
 
+static int hvf_insert_sw_breakpoint(CPUState *cs, struct CPUBreakpoint *bp)
+{
+    //static const uint8_t int1 = 0xf1;
+    static const uint8_t int3 = 0xcc;
+
+    if (cpu_memory_rw_debug(cs, bp->pc, (uint8_t *)&bp->saved_insn, 1, 0) ||
+        cpu_memory_rw_debug(cs, bp->pc, (uint8_t *)&int3, 1, 1)) {
+        return -EINVAL;
+    }
+    uint8_t byte;
+    cpu_memory_rw_debug(cs, bp->pc, (uint8_t *)&byte, 1, 0);
+    printf("%s: %#x is written at %#" VADDR_PRIx "\n", __func__, byte, bp->pc);
+    return 0;
+}
+
 static void hvf_invoke_set_guest_debug(CPUState *cpu, run_on_cpu_data data)
 {
     X86CPU *x86_cpu = X86_CPU(cpu);
     CPUX86State *env = &x86_cpu->env;
+    CPUBreakpoint *bp;
     bool singlestep_enabled = *(bool *) data.host_ptr;
     uint32_t pri_proc_ctls = rvmcs(cpu->hvf_fd, VMCS_PRI_PROC_BASED_CTLS);
 
@@ -952,6 +968,10 @@ static void hvf_invoke_set_guest_debug(CPUState *cpu, run_on_cpu_data data)
     } else {
         env->dr[7] = 0x0000;
     }
+
+    QTAILQ_FOREACH(bp, &cpu->breakpoints, entry) {
+        hvf_insert_sw_breakpoint(cpu, bp);
+    }
 }
 
 int hvf_update_guest_debug(CPUState *cpu)
@@ -962,21 +982,6 @@ int hvf_update_guest_debug(CPUState *cpu)
     run_on_cpu(cpu, hvf_invoke_set_guest_debug,
                RUN_ON_CPU_HOST_PTR(&singlestep_enabled));
 
-    return 0;
-}
-
-static int hvf_insert_sw_breakpoint(CPUState *cs, struct CPUBreakpoint *bp)
-{
-    //static const uint8_t int1 = 0xf1;
-    static const uint8_t int3 = 0xcc;
-
-    if (cpu_memory_rw_debug(cs, bp->pc, (uint8_t *)&bp->saved_insn, 1, 0) ||
-        cpu_memory_rw_debug(cs, bp->pc, (uint8_t *)&int3, 1, 1)) {
-        return -EINVAL;
-    }
-    uint8_t byte;
-    cpu_memory_rw_debug(cs, bp->pc, (uint8_t *)&byte, 1, 0);
-    printf("%s: %#x is written at %#" VADDR_PRIx "\n", __func__, byte, bp->pc);
     return 0;
 }
 
@@ -999,12 +1004,6 @@ int hvf_insert_breakpoint(CPUState *cpu, target_ulong addr,
         bp->pc = addr;
         bp->use_count = 1;
         bp->flags = BP_GDB; //TODO flags HW/SW
-
-        err = hvf_insert_sw_breakpoint(cpu, bp);
-        if (err) {
-            g_free(bp);
-            return err;
-        }
 
         /* keep all GDB-injected breakpoints in front */
         QTAILQ_INSERT_HEAD(&cpu->breakpoints, bp, entry);
