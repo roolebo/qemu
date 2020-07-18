@@ -19,28 +19,28 @@
 #define HVF_PANIC_H
 
 #define VM_PANIC(x) {\
-    printf("%s\n", x); \
+    fprintf(stderr, "%s\n", x); \
     cpu_dump_state(current_cpu, stderr, CPU_DUMP_CODE); \
     abort(); \
 }
 
 #define VM_PANIC_ON(x) {\
     if (x) { \
-        printf("%s\n", #x); \
+        fprintf(stderr, "%s\n", #x); \
         cpu_dump_state(current_cpu, stderr, CPU_DUMP_CODE); \
         abort(); \
     } \
 }
 
 #define VM_PANIC_EX(...) {\
-    printf(__VA_ARGS__); \
+    fprintf(stderr, __VA_ARGS__); \
     cpu_dump_state(current_cpu, stderr, CPU_DUMP_CODE); \
     abort(); \
 }
 
 #define VM_PANIC_ON_EX(x, ...) {\
     if (x) { \
-        printf(__VA_ARGS__); \
+        fprintf(stderr, __VA_ARGS__); \
         cpu_dump_state(current_cpu, stderr, CPU_DUMP_CODE); \
         abort(); \
     } \
