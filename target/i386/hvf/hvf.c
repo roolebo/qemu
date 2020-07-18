@@ -908,6 +908,8 @@ int hvf_vcpu_exec(CPUState *cpu)
             break;
         default:
             error_report("%llx: unhandled exit %llx", rip, exit_reason);
+            cpu_dump_state(cpu, stderr, CPU_DUMP_CODE);
+            exit(EXIT_FAILURE);
         }
     } while (ret == 0);
 
