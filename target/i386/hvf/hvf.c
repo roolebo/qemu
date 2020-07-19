@@ -49,6 +49,7 @@
 #include "qemu/osdep.h"
 #include "qemu-common.h"
 #include "qemu/error-report.h"
+#include "qemu/qemu-print.h"
 
 #include "sysemu/hvf.h"
 #include "sysemu/runstate.h"
@@ -671,7 +672,9 @@ int hvf_vcpu_exec(CPUState *cpu)
         assert_hvf_ok(r);
 
         /* handle VMEXIT */
-        uint64_t exit_reason = rvmcs(cpu->hvf_fd, VMCS_EXIT_REASON);
+        uint32_t exit_reason = (uint32_t)rvmcs(cpu->hvf_fd, VMCS_EXIT_REASON);
+        uint16_t basic_exit_reason = exit_reason & 0xffff;
+        bool vmentry_failure = exit_reason >> 31;
         uint64_t exit_qual = rvmcs(cpu->hvf_fd, VMCS_EXIT_QUALIFICATION);
         uint32_t ins_len = (uint32_t)rvmcs(cpu->hvf_fd,
                                            VMCS_EXIT_INSTRUCTION_LENGTH);
@@ -689,7 +692,22 @@ int hvf_vcpu_exec(CPUState *cpu)
         current_cpu = cpu;
 
         ret = 0;
-        switch (exit_reason) {
+        if (vmentry_failure) {
+            switch (basic_exit_reason) {
+                case EXIT_REASON_INVAL_VMCS:
+                    error_report("VM-entry failure "
+                                 "due to invalid guest state");
+                    hvf_dump_vmcs(cpu, stderr);
+                    break;
+                default:
+                    error_report("%llx: Unhandled VM-entry failure %"
+                                 PRIx16 "\n", rip, basic_exit_reason);
+            }
+            qemu_fprintf(stderr, "*** Emulator State ***\n");
+            cpu_dump_state(cpu, stderr, CPU_DUMP_CODE);
+            exit(EXIT_FAILURE);
+        }
+        switch (basic_exit_reason) {
         case EXIT_REASON_HLT: {
             macvm_set_rip(cpu, rip + ins_len);
             if (!((cpu->interrupt_request & CPU_INTERRUPT_HARD) &&
@@ -824,7 +842,7 @@ int hvf_vcpu_exec(CPUState *cpu)
         case EXIT_REASON_WRMSR:
         {
             load_regs(cpu);
-            if (exit_reason == EXIT_REASON_RDMSR) {
+            if (basic_exit_reason == EXIT_REASON_RDMSR) {
                 simulate_rdmsr(cpu);
             } else {
                 simulate_wrmsr(cpu);
@@ -907,9 +925,8 @@ int hvf_vcpu_exec(CPUState *cpu)
             env->error_code = 0;
             break;
         default:
-            error_report("%llx: unhandled exit %llx", rip, exit_reason);
-            cpu_dump_state(cpu, stderr, CPU_DUMP_CODE);
-            exit(EXIT_FAILURE);
+            error_report("%llx: unhandled exit %" PRIx16,
+                         rip, basic_exit_reason);
         }
     } while (ret == 0);
 
@@ -930,6 +947,130 @@ void hvf_vcpu_kick(CPUState *cpu)
         fprintf(stderr, "qemu:%s error %#x\n", __func__, err);
         exit(1);
     }
+}
+
+void hvf_dump_vmcs(CPUState *cpu, FILE *f)
+{
+    uint32_t exit_reason = (uint32_t)rvmcs(cpu->hvf_fd, VMCS_EXIT_REASON);
+    uint64_t exit_qual = rvmcs(cpu->hvf_fd, VMCS_EXIT_QUALIFICATION);
+    uint64_t ins_err = rvmcs(cpu->hvf_fd, VMCS_INSTRUCTION_ERROR);
+    uint64_t entry_ctls = rvmcs(cpu->hvf_fd, VMCS_ENTRY_CTLS);
+    uint64_t exit_ctls = rvmcs(cpu->hvf_fd, VMCS_EXIT_CTLS);
+    uint64_t pin_based_ctls = rvmcs(cpu->hvf_fd, VMCS_PIN_BASED_CTLS);
+    uint64_t pri_exec_ctls = rvmcs(cpu->hvf_fd, VMCS_PRI_PROC_BASED_CTLS);
+    uint64_t sec_exec_ctls = rvmcs(cpu->hvf_fd, VMCS_SEC_PROC_BASED_CTLS);
+
+    qemu_fprintf(f, "*** Start of VMCS dump ***\n");
+    qemu_fprintf(f, "ExitReason=%08x ExitQual=%016llx\n",
+                 exit_reason, exit_qual);
+    qemu_fprintf(f, "InstructionError=%016llx\n", ins_err);
+    qemu_fprintf(f, "*** Control Fields ***\n");
+    qemu_fprintf(f, "Entry=%016llx Exit=%016llx\n", entry_ctls, exit_ctls);
+    qemu_fprintf(f, "Primary=%016llx Secondary=%016llx\n",
+                 pri_exec_ctls, sec_exec_ctls);
+    qemu_fprintf(f, "Pin=%016llx\n", pin_based_ctls);
+    qemu_fprintf(f, "*** Guest-State Fields ***\n");
+    qemu_fprintf(f, "EAX=%08x EBX=%08x ECX=%08x EDX=%08x\n",
+                 (uint32_t)rreg(cpu->hvf_fd, HV_X86_RAX),
+                 (uint32_t)rreg(cpu->hvf_fd, HV_X86_RBX),
+                 (uint32_t)rreg(cpu->hvf_fd, HV_X86_RCX),
+                 (uint32_t)rreg(cpu->hvf_fd, HV_X86_RDX));
+    qemu_fprintf(f, "ESI=%08x EDI=%08x EBP=%08x ESP=%08x\n",
+                 (uint32_t)rreg(cpu->hvf_fd, HV_X86_RSI),
+                 (uint32_t)rreg(cpu->hvf_fd, HV_X86_RDI),
+                 (uint32_t)rreg(cpu->hvf_fd, HV_X86_RBP),
+                 (uint32_t)rreg(cpu->hvf_fd, HV_X86_RSP));
+    qemu_fprintf(f, "EIP=%08x EFL=%08x\n",
+                 (uint32_t)rreg(cpu->hvf_fd, HV_X86_RIP),
+                 (uint32_t)rreg(cpu->hvf_fd, HV_X86_RFLAGS));
+    qemu_fprintf(f, "ES =%04x %08x %08x %08x\n",
+                 (uint16_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_ES_SELECTOR),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_ES_BASE),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_ES_LIMIT),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_ES_ACCESS_RIGHTS));
+    qemu_fprintf(f, "CS =%04x %08x %08x %08x\n",
+                 (uint16_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_CS_SELECTOR),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_CS_BASE),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_CS_LIMIT),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_CS_ACCESS_RIGHTS));
+    qemu_fprintf(f, "SS =%04x %08x %08x %08x\n",
+                 (uint16_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_SS_SELECTOR),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_SS_BASE),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_SS_LIMIT),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_SS_ACCESS_RIGHTS));
+    qemu_fprintf(f, "DS =%04x %08x %08x %08x\n",
+                 (uint16_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_DS_SELECTOR),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_DS_BASE),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_DS_LIMIT),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_DS_ACCESS_RIGHTS));
+    qemu_fprintf(f, "GS =%04x %08x %08x %08x\n",
+                 (uint16_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_GS_SELECTOR),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_GS_BASE),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_GS_LIMIT),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_GS_ACCESS_RIGHTS));
+    qemu_fprintf(f, "FS =%04x %08x %08x %08x\n",
+                 (uint16_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_FS_SELECTOR),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_FS_BASE),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_FS_LIMIT),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_FS_ACCESS_RIGHTS));
+    qemu_fprintf(f, "LDT=%04x %08x %08x %08x\n",
+                 (uint16_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_LDTR_SELECTOR),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_LDTR_BASE),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_LDTR_LIMIT),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_LDTR_ACCESS_RIGHTS));
+    qemu_fprintf(f, "TR =%04x %08x %08x %08x\n",
+                 (uint16_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_TR_SELECTOR),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_TR_BASE),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_TR_LIMIT),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_TR_ACCESS_RIGHTS));
+    qemu_fprintf(f, "GDT=     %08x %08x\n",
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_GDTR_BASE),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_GDTR_LIMIT));
+    qemu_fprintf(f, "IDT=     %08x %08x\n",
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_IDTR_BASE),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_IDTR_LIMIT));
+    qemu_fprintf(f, "CR0=%08llx CR3=%08llx CR4=%08llx\n",
+                 rvmcs(cpu->hvf_fd, VMCS_GUEST_CR0),
+                 rvmcs(cpu->hvf_fd, VMCS_GUEST_CR3),
+                 rvmcs(cpu->hvf_fd, VMCS_GUEST_CR4));
+    qemu_fprintf(f, "CR0 shadow=%08llx mask=%08llx\n",
+                 rvmcs(cpu->hvf_fd, VMCS_CR0_SHADOW),
+                 rvmcs(cpu->hvf_fd, VMCS_CR0_MASK));
+    qemu_fprintf(f, "CR4 shadow=%08llx mask=%08llx\n",
+                 rvmcs(cpu->hvf_fd, VMCS_CR4_SHADOW),
+                 rvmcs(cpu->hvf_fd, VMCS_CR4_MASK));
+    qemu_fprintf(f, "DR7=%016llx\n",
+                 rvmcs(cpu->hvf_fd, VMCS_GUEST_DR7));
+    qemu_fprintf(f, "EFER=%016llx\n",
+                 rvmcs(cpu->hvf_fd, VMCS_GUEST_IA32_EFER));
+    qemu_fprintf(f, "SYSENTER CS:IP=%04x:%08x SP=%08x\n",
+                 (uint16_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_IA32_SYSENTER_CS),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_IA32_SYSENTER_EIP),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_IA32_SYSENTER_ESP));
+    qemu_fprintf(f, "Activity=%08x Interruptibility=%08x\n",
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_ACTIVITY),
+                 (uint32_t)rvmcs(cpu->hvf_fd, VMCS_GUEST_INTERRUPTIBILITY));
+    qemu_fprintf(f, "PendingDbgExceptions=%016llx\n",
+                 rvmcs(cpu->hvf_fd, VMCS_GUEST_PENDING_DBG_EXCEPTIONS));
+    /*
+    else if (basic_exit_reason == EXIT_REASON_EPT_FAULT) {
+        if (pri_exec_ctls & VMCS_PRI_PROC_BASED_CTLS_SEC_CONTROL) {
+            if (sec_exec_ctls & VMCS_PRI_PROC_BASED2_CTLS_EPT_ENABLE) {
+                uint64_t eptp = rvmcs(cpu->hvf_fd, VMCS_EPTP);
+                error_report("eptp:                   0x%016llx", eptp);
+                uint64_t gpa = rvmcs(cpu->hvf_fd,
+                        VMCS_GUEST_PHYSICAL_ADDRESS);
+                error_report("gpa:                    0x%016llx", gpa);
+            }
+        }
+        if (exit_qual & EPT_VIOLATION_GLA_VALID) {
+            uint64_t gla = rvmcs(cpu->hvf_fd,
+                    VMCS_GUEST_LINEAR_ADDRESS);
+            error_report("gla:                    0x%016llx", gla);
+        }
+    }
+    */
+    qemu_fprintf(f, "*** End of VMCS dump ***\n");
 }
 
 bool hvf_allowed;

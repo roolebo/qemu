@@ -68,6 +68,7 @@ extern HVFState *hvf_state;
 
 void hvf_set_phys_mem(MemoryRegionSection *, bool);
 void hvf_handle_io(CPUArchState *, uint16_t, void *, int, int, int);
+void hvf_dump_vmcs(CPUState *, FILE *);
 hvf_slot *hvf_find_overlap_slot(uint64_t, uint64_t);
 
 #ifdef NEED_CPU_H
