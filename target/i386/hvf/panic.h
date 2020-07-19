@@ -21,28 +21,28 @@
 #define VM_PANIC(x) {\
     fprintf(stderr, "%s\n", x); \
     cpu_dump_state(current_cpu, stderr, CPU_DUMP_CODE); \
-    abort(); \
+    exit(EXIT_FAILURE); \
 }
 
 #define VM_PANIC_ON(x) {\
     if (x) { \
         fprintf(stderr, "%s\n", #x); \
         cpu_dump_state(current_cpu, stderr, CPU_DUMP_CODE); \
-        abort(); \
+        exit(EXIT_FAILURE); \
     } \
 }
 
 #define VM_PANIC_EX(...) {\
     fprintf(stderr, __VA_ARGS__); \
     cpu_dump_state(current_cpu, stderr, CPU_DUMP_CODE); \
-    abort(); \
+    exit(EXIT_FAILURE); \
 }
 
 #define VM_PANIC_ON_EX(x, ...) {\
     if (x) { \
         fprintf(stderr, __VA_ARGS__); \
         cpu_dump_state(current_cpu, stderr, CPU_DUMP_CODE); \
-        abort(); \
+        exit(EXIT_FAILURE); \
     } \
 }
 
