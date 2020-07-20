@@ -39,7 +39,7 @@ void hvf_set_segment(struct CPUState *cpu, struct vmx_segment *vmx_seg,
     vmx_seg->base = qseg->base;
     vmx_seg->limit = qseg->limit;
 
-    if (!qseg->selector && !x86_is_long_mode(cpu) && !is_tr) {
+    if (!qseg->selector && !x86_is_real(cpu) && !is_tr) {
         /* the TR register is usable after processor reset despite
          * having a null selector */
         vmx_seg->ar = 1 << 16;
