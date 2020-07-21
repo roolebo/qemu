@@ -39,12 +39,6 @@ void hvf_set_segment(struct CPUState *cpu, struct vmx_segment *vmx_seg,
     vmx_seg->base = qseg->base;
     vmx_seg->limit = qseg->limit;
 
-    if (!qseg->selector && !x86_is_real(cpu) && !is_tr) {
-        /* the TR register is usable after processor reset despite
-         * having a null selector */
-        vmx_seg->ar = 1 << 16;
-        return;
-    }
     vmx_seg->ar = (qseg->flags >> DESC_TYPE_SHIFT) & 0xf;
     vmx_seg->ar |= ((qseg->flags >> DESC_G_SHIFT) & 1) << 15;
     vmx_seg->ar |= ((qseg->flags >> DESC_B_SHIFT) & 1) << 14;
@@ -53,6 +47,7 @@ void hvf_set_segment(struct CPUState *cpu, struct vmx_segment *vmx_seg,
     vmx_seg->ar |= ((qseg->flags >> DESC_P_SHIFT) & 1) << 7;
     vmx_seg->ar |= ((qseg->flags >> DESC_DPL_SHIFT) & 3) << 5;
     vmx_seg->ar |= ((qseg->flags >> DESC_S_SHIFT) & 1) << 4;
+    vmx_seg->ar |= ((~qseg->flags >> DESC_P_SHIFT) & 1) << 16;
 }
 
 void hvf_get_segment(SegmentCache *qseg, struct vmx_segment *vmx_seg)
