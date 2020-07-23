@@ -71,6 +71,7 @@
 #include "qemu/main-loop.h"
 #include "sysemu/accel.h"
 #include "target/i386/cpu.h"
+#include "target/i386/trace.h"
 
 HVFState *hvf_state;
 
@@ -692,6 +693,7 @@ int hvf_vcpu_exec(CPUState *cpu)
         hvf_store_events(cpu, ins_len, idtvec_info);
         rip = rreg(cpu->hvf_fd, HV_X86_RIP);
         env->eflags = rreg(cpu->hvf_fd, HV_X86_RFLAGS);
+        trace_hvf_vmexit(cpu, rip, exit_reason, exit_qual);
 
         qemu_mutex_lock_iothread();
 

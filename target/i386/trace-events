@@ -15,3 +15,6 @@ kvm_sev_launch_start(int policy, void *session, void *pdh) "policy 0x%x session 
 kvm_sev_launch_update_data(void *addr, uint64_t len) "addr %p len 0x%" PRIu64
 kvm_sev_launch_measurement(const char *value) "data %s"
 kvm_sev_launch_finish(void) ""
+
+# hvf/hvf.c
+hvf_vmexit(void *cpu, uint64_t rip, uint32_t reason, uint64_t qual) "VM-exit on vcpu %p rip %" PRIx64 " reason %" PRIu32 " qual %#" PRIx64
