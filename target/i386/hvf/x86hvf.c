@@ -26,6 +26,7 @@
 #include "cpu.h"
 #include "x86_descr.h"
 #include "x86_decode.h"
+#include "x86_flags.h"
 
 #include "hw/i386/apic_internal.h"
 
@@ -257,8 +258,10 @@ int hvf_put_registers(CPUState *cpu_state)
     wreg(cpu_state->hvf_fd, HV_X86_R13, env->regs[13]);
     wreg(cpu_state->hvf_fd, HV_X86_R14, env->regs[14]);
     wreg(cpu_state->hvf_fd, HV_X86_R15, env->regs[15]);
+
+    lflags_to_rflags(env);
     wreg(cpu_state->hvf_fd, HV_X86_RFLAGS, env->eflags);
-    wreg(cpu_state->hvf_fd, HV_X86_RIP, env->eip);
+    macvm_set_rip(cpu_state, env->eip);
    
     wreg(cpu_state->hvf_fd, HV_X86_XCR0, env->xcr0);
     
@@ -303,6 +306,7 @@ int hvf_get_registers(CPUState *cpu_state)
     env->regs[15] = rreg(cpu_state->hvf_fd, HV_X86_R15);
     
     env->eflags = rreg(cpu_state->hvf_fd, HV_X86_RFLAGS);
+    rflags_to_lflags(env);
     env->eip = rreg(cpu_state->hvf_fd, HV_X86_RIP);
    
     hvf_get_xsave(cpu_state);

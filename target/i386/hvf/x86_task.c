@@ -120,7 +120,7 @@ void vmx_handle_task_switch(CPUState *cpu, x68_segment_selector tss_sel, int rea
         return;
     }
 
-    load_regs(cpu);
+    hvf_get_registers(cpu);
 
     struct x86_segment_descriptor curr_tss_desc, next_tss_desc;
     int ret;
@@ -178,7 +178,7 @@ void vmx_handle_task_switch(CPUState *cpu, x68_segment_selector tss_sel, int rea
     x86_segment_descriptor_to_vmx(cpu, tss_sel, &next_tss_desc, &vmx_seg);
     vmx_write_segment_descriptor(cpu, &vmx_seg, R_TR);
 
-    store_regs(cpu);
+    hvf_put_registers(cpu);
 
     hv_vcpu_invalidate_tlb(cpu->hvf_fd);
     hv_vcpu_flush(cpu->hvf_fd);

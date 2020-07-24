@@ -741,10 +741,10 @@ int hvf_vcpu_exec(CPUState *cpu)
             if (ept_emulation_fault(slot, gpa, exit_qual)) {
                 struct x86_decode decode;
 
-                load_regs(cpu);
+                hvf_get_registers(cpu);
                 decode_instruction(env, &decode);
                 exec_instruction(env, &decode);
-                store_regs(cpu);
+                hvf_put_registers(cpu);
                 break;
             }
             break;
@@ -759,7 +759,7 @@ int hvf_vcpu_exec(CPUState *cpu)
 
             if (!string && in) {
                 uint64_t val = 0;
-                load_regs(cpu);
+                hvf_get_registers(cpu);
                 hvf_handle_io(env, port, &val, 0, size, 1);
                 if (size == 1) {
                     AL(env) = val;
@@ -771,7 +771,7 @@ int hvf_vcpu_exec(CPUState *cpu)
                     RAX(env) = (uint64_t)val;
                 }
                 env->eip += ins_len;
-                store_regs(cpu);
+                hvf_put_registers(cpu);
                 break;
             } else if (!string && !in) {
                 RAX(env) = rreg(cpu->hvf_fd, HV_X86_RAX);
@@ -781,11 +781,11 @@ int hvf_vcpu_exec(CPUState *cpu)
             }
             struct x86_decode decode;
 
-            load_regs(cpu);
+            hvf_get_registers(cpu);
             decode_instruction(env, &decode);
             assert(ins_len == decode.len);
             exec_instruction(env, &decode);
-            store_regs(cpu);
+            hvf_put_registers(cpu);
 
             break;
         }
@@ -841,31 +841,33 @@ int hvf_vcpu_exec(CPUState *cpu)
         case EXIT_REASON_RDMSR:
         case EXIT_REASON_WRMSR:
         {
-            load_regs(cpu);
+            hvf_get_registers(cpu);
             if (basic_exit_reason == EXIT_REASON_RDMSR) {
                 simulate_rdmsr(cpu);
             } else {
                 simulate_wrmsr(cpu);
             }
             env->eip += ins_len;
-            store_regs(cpu);
+            hvf_put_registers(cpu);
             break;
         }
         case EXIT_REASON_CR_ACCESS: {
+            X86CPU *x86_cpu = X86_CPU(cpu);
+            CPUX86State *env = &x86_cpu->env;
             int cr;
             int reg;
 
-            load_regs(cpu);
+            hvf_get_registers(cpu);
             cr = exit_qual & 15;
             reg = (exit_qual >> 8) & 15;
 
             switch (cr) {
             case 0x0: {
-                macvm_set_cr0(cpu->hvf_fd, RRX(env, reg));
+                env->cr[0] = RRX(env, reg);
                 break;
             }
             case 4: {
-                macvm_set_cr4(cpu->hvf_fd, RRX(env, reg));
+                env->cr[4] = RRX(env, reg);
                 break;
             }
             case 8: {
@@ -884,16 +886,16 @@ int hvf_vcpu_exec(CPUState *cpu)
                 abort();
             }
             env->eip += ins_len;
-            store_regs(cpu);
+            hvf_put_registers(cpu);
             break;
         }
         case EXIT_REASON_APIC_ACCESS: { /* TODO */
             struct x86_decode decode;
 
-            load_regs(cpu);
+            hvf_get_registers(cpu);
             decode_instruction(env, &decode);
             exec_instruction(env, &decode);
-            store_regs(cpu);
+            hvf_put_registers(cpu);
             break;
         }
         case EXIT_REASON_TPR: {
