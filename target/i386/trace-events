@@ -18,3 +18,5 @@ kvm_sev_launch_finish(void) ""
 
 # hvf/hvf.c
 hvf_vmexit(void *cpu, uint64_t rip, uint32_t reason, uint64_t qual) "VM-exit on vcpu %p rip %" PRIx64 " reason %" PRIu32 " qual %#" PRIx64
+# hvf/x86hvf.c
+hvf_inject_event(void *cpu, uint32_t intr_info, uint32_t error_code) "Inject event on vcpu %p info %" PRIx32 " error code" PRIx32

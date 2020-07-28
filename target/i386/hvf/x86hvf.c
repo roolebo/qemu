@@ -28,6 +28,7 @@
 #include "x86_decode.h"
 
 #include "hw/i386/apic_internal.h"
+#include "target/i386/trace.h"
 
 #include <Hypervisor/hv.h>
 #include <Hypervisor/hv_vmx.h>
@@ -380,6 +381,7 @@ bool hvf_inject_interrupts(CPUState *cpu_state)
         if (!(env->hflags2 & HF2_NMI_MASK) || intr_type != VMCS_INTR_T_NMI) {
             info &= ~(1 << 12); /* clear undefined bit */
             if (intr_type == VMCS_INTR_T_SWINTR ||
+                intr_type == VMCS_INTR_T_PRIV_SWEXCEPTION ||
                 intr_type == VMCS_INTR_T_SWEXCEPTION) {
                 wvmcs(cpu_state->hvf_fd, VMCS_ENTRY_INST_LENGTH, env->ins_len);
             }
@@ -390,7 +392,8 @@ bool hvf_inject_interrupts(CPUState *cpu_state)
                 /* Indicate that VMCS_ENTRY_EXCEPTION_ERROR is valid */
                 info |= VMCS_INTR_DEL_ERRCODE;
             }
-            /*printf("reinject  %lx err %d\n", info, err);*/
+            trace_hvf_inject_event(cpu_state, info,
+                                   env->has_error_code ? env->error_code : 0);
             wvmcs(cpu_state->hvf_fd, VMCS_ENTRY_INTR_INFO, info);
         };
     }
@@ -399,6 +402,7 @@ bool hvf_inject_interrupts(CPUState *cpu_state)
         if (!(env->hflags2 & HF2_NMI_MASK) && !(info & VMCS_INTR_VALID)) {
             cpu_state->interrupt_request &= ~CPU_INTERRUPT_NMI;
             info = VMCS_INTR_VALID | VMCS_INTR_T_NMI | EXCP02_NMI;
+            trace_hvf_inject_event(cpu_state, info, 0);
             wvmcs(cpu_state->hvf_fd, VMCS_ENTRY_INTR_INFO, info);
         } else {
             vmx_set_nmi_window_exiting(cpu_state);
@@ -411,8 +415,9 @@ bool hvf_inject_interrupts(CPUState *cpu_state)
         int line = cpu_get_pic_interrupt(&x86cpu->env);
         cpu_state->interrupt_request &= ~CPU_INTERRUPT_HARD;
         if (line >= 0) {
-            wvmcs(cpu_state->hvf_fd, VMCS_ENTRY_INTR_INFO, line |
-                  VMCS_INTR_VALID | VMCS_INTR_T_HWINTR);
+            info = line | VMCS_INTR_VALID | VMCS_INTR_T_HWINTR;
+            trace_hvf_inject_event(cpu_state, info, 0);
+            wvmcs(cpu_state->hvf_fd, VMCS_ENTRY_INTR_INFO, info);
         }
     }
     if (cpu_state->interrupt_request & CPU_INTERRUPT_HARD) {
