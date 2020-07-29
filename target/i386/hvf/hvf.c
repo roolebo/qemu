@@ -827,6 +827,76 @@ int hvf_vcpu_exec(CPUState *cpu)
             store_regs(cpu);
             break;
         }
+        case EXIT_REASON_DR_ACCESS: {
+            int dr = exit_qual & 3;
+            bool mov_from_dr = (exit_qual >> 4) & 1;
+            int gpr = (exit_qual >> 8) & 0xf;
+
+            /*
+             * XXX FPU registers aren't needed
+             * Need only GPR, CR, DR
+             */
+
+            hvf_get_registers(cpu);
+
+            if (((env->hflags & HF_PE_MASK) && (env->hflags & HF_CPL_MASK))
+                  || (env->hflags & HF_VM_MASK)) {
+                /* XXX wrap into (hvf_)raise_exception_err_ra */
+                /* XXX don't overwrite pending exceptions */
+                env->exception_nr = EXCP0D_GPF;
+                env->has_error_code = true;
+                env->error_code = 0;
+                env->exception_injected = 1;
+            }
+
+            /*
+             * When the debug extension (DE) flag in register CR4 is clear,
+             * these instructions operate on debug registers in a manner that
+             * is compatible with Intel386 and Intel486 processors. In this
+             * mode, references to DR4 and DR5 refer to DR6 and DR7,
+             * respectively. When the DE flag in CR4 is set, attempts to
+             * reference DR4 and DR5 result in an undefined opcode (#UD)
+             * exception. (The CR4 register was added to the IA-32 Architecture
+             * beginning with the Pentium processor.)
+             */
+            if ((env->cr[4] & CR4_DE_MASK) && (dr == 4 || dr == 5)) {
+                /* XXX wrap into (hvf_)raise_exception_err */
+                /* XXX don't overwrite pending exceptions */
+                env->exception_nr = EXCP06_ILLOP;
+                /* XXX really needed */
+                env->exception_injected = 1;
+            }
+
+            /*
+             * If any debug register is accessed while the DR7.GD[bit 13] = 1.
+             * raise #DB;
+             */
+
+            /*
+             * In 64-bit mode, the instruction’s default operation size is 64
+             * bits. Use of the REX.B prefix permits access to addi- tional
+             * registers (R8–R15). Use of the REX.W or 66H prefix is ignored.
+             * Use of the REX.R prefix causes an invalid- opcode exception. See
+             * the summary chart at the beginning of this section for encoding
+             * data and limits.
+             */
+
+            /* In 64-bit mode,
+             * If an attempt is made to write a 1 to any of bits 63:32 in DR6.
+             * If an attempt is made to write a 1 to any of bits 63:32 in DR7.
+             * raise #GP(0)
+             */
+
+            /* XXX check if truncation is needed to 32-bits */
+            if (mov_from_dr) {
+                RRX(env, gpr) = env->dr[dr];
+            } else {
+                env->dr[dr] = RRX(env, gpr);
+            }
+            env->eip += ins_len;
+            hvf_put_registers(cpu);
+            break;
+        }
         case EXIT_REASON_APIC_ACCESS: { /* TODO */
             struct x86_decode decode;
 
