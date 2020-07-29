@@ -839,6 +839,51 @@ int hvf_vcpu_exec(CPUState *cpu)
             store_regs(cpu);
             break;
         }
+        case EXIT_REASON_DR_ACCESS: {
+            int dr = exit_qual & 3;
+            bool mov_from_dr = (exit_qual >> 4) & 1;
+            int gpr = (exit_qual >> 8) & 0xf;
+
+            /*
+             * TODO Possible point of optimization.
+             * The exit reason only needs GPR, CR, DR and hflags.
+             * FPU registers aren't needed.
+             */
+            hvf_get_registers(cpu);
+
+            if (((env->hflags & HF_PE_MASK) && (env->hflags & HF_CPL_MASK))
+                  || (env->hflags & HF_VM_MASK)) {
+                raise_exception_err(env, EXCP0D_GPF, 0);
+            }
+
+            if (dr == 4 || dr == 5) {
+                if (env->cr[4] & CR4_DE_MASK) {
+                    raise_exception(env, EXCP06_ILLOP);
+                } else {
+                    dr += 2;
+                }
+            }
+
+            if (env->dr[7] & DR7_GD) {
+                raise_exception(env, EXCP01_DB);
+            }
+
+            if ((env->hflags & HF_LMA_MASK) && (dr == 6 || dr == 7)
+                  && !mov_from_dr && (RRX(env, gpr) & ~0xffffffffull)) {
+                raise_exception_err(env, EXCP0D_GPF, 0);
+            }
+
+            /* XXX check if truncation is needed to 32-bits */
+
+            if (mov_from_dr) {
+                RRX(env, gpr) = env->dr[dr];
+            } else {
+                env->dr[dr] = RRX(env, gpr);
+            }
+            env->eip += ins_len;
+            hvf_put_registers(cpu);
+            break;
+        }
         case EXIT_REASON_APIC_ACCESS: { /* TODO */
             struct x86_decode decode;
 
