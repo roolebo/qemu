@@ -282,6 +282,11 @@ void hvf_handle_io(CPUArchState *env, uint16_t port, void *buffer,
     }
 }
 
+void hvf_cpu_loop_exit_restore(CPUState *cpu)
+{
+    siglongjmp(cpu->jmp_env, 1);
+}
+
 static void do_hvf_cpu_synchronize_state(CPUState *cpu, run_on_cpu_data arg)
 {
     if (!cpu->vcpu_dirty) {
@@ -619,6 +624,13 @@ int hvf_vcpu_exec(CPUState *cpu)
             hvf_put_registers(cpu);
             cpu->vcpu_dirty = false;
         }
+
+        sigsetjmp(cpu->jmp_env, 0);
+        /*
+         * if (sigsetjmp returns > 0) {
+         *     the exception is raised
+         * }
+         */
 
         if (hvf_inject_interrupts(cpu)) {
             return EXCP_INTERRUPT;

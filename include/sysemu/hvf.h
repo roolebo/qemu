@@ -25,6 +25,7 @@ extern bool hvf_allowed;
 
 int hvf_init_vcpu(CPUState *);
 int hvf_vcpu_exec(CPUState *);
+void QEMU_NORETURN hvf_cpu_loop_exit_restore(CPUState *);
 void hvf_cpu_synchronize_state(CPUState *);
 void hvf_cpu_synchronize_post_reset(CPUState *);
 void hvf_cpu_synchronize_post_init(CPUState *);

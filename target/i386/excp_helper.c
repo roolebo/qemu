@@ -22,6 +22,7 @@
 #include "exec/exec-all.h"
 #include "qemu/log.h"
 #include "sysemu/runstate.h"
+#include "sysemu/hvf.h"
 #include "exec/helper-proto.h"
 
 void helper_raise_interrupt(CPUX86State *env, int intno, int next_eip_addend)
@@ -53,7 +54,7 @@ static int check_exception(CPUX86State *env, int intno, int *error_code,
 
 #if !defined(CONFIG_USER_ONLY)
     if (env->old_exception == EXCP08_DBLE) {
-        if (env->hflags & HF_GUEST_MASK) {
+        if ((env->hflags & HF_GUEST_MASK) && !hvf_enabled()) {
             cpu_vmexit(env, SVM_EXIT_SHUTDOWN, 0, retaddr); /* does not return */
         }
 
@@ -93,18 +94,26 @@ static void QEMU_NORETURN raise_interrupt2(CPUX86State *env, int intno,
     CPUState *cs = env_cpu(env);
 
     if (!is_int) {
-        cpu_svm_check_intercept_param(env, SVM_EXIT_EXCP_BASE + intno,
-                                      error_code, retaddr);
+        if (!hvf_enabled()) {
+            cpu_svm_check_intercept_param(env, SVM_EXIT_EXCP_BASE + intno,
+                                          error_code, retaddr);
+        }
         intno = check_exception(env, intno, &error_code, retaddr);
     } else {
-        cpu_svm_check_intercept_param(env, SVM_EXIT_SWINT, 0, retaddr);
+        if (!hvf_enabled()) {
+            cpu_svm_check_intercept_param(env, SVM_EXIT_SWINT, 0, retaddr);
+        }
     }
 
     cs->exception_index = intno;
     env->error_code = error_code;
     env->exception_is_int = is_int;
     env->exception_next_eip = env->eip + next_eip_addend;
-    cpu_loop_exit_restore(cs, retaddr);
+    if (hvf_enabled()) {
+        hvf_cpu_loop_exit_restore(cs);
+    } else {
+        cpu_loop_exit_restore(cs, retaddr);
+    }
 }
 
 /* shortcuts to generate exceptions */
