@@ -28,3 +28,8 @@ int hvf_vcpu_exec(CPUState *cpu)
 void hvf_vcpu_destroy(CPUState *cpu)
 {
 }
+
+void hvf_cpu_loop_exit_restore(CPUState *cpu)
+{
+    exit(1);
+}
