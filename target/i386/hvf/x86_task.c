@@ -109,6 +109,21 @@ static int task_switch_32(CPUState *cpu, x68_segment_selector tss_sel, x68_segme
     return 0;
 }
 
+void hvf_handle_task_switch(CPUState *cpu, x68_segment_selector tss_sel,
+                            int reason)
+{
+    switch (reason) {
+        case TSR_JMP: {
+            break;
+        }
+        default:
+            printf("TSR: %d is not implemented\n", reason);
+            /*
+            abort();
+            */
+    }
+}
+
 void vmx_handle_task_switch(CPUState *cpu, x68_segment_selector tss_sel, int reason, bool gate_valid, uint8_t gate, uint64_t gate_type)
 {
     uint64_t rip = rreg(cpu->hvf_fd, HV_X86_RIP);

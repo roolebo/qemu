@@ -841,11 +841,11 @@ int hvf_vcpu_exec(CPUState *cpu)
             break;
         }
         case EXIT_REASON_TASK_SWITCH: {
-            uint64_t vinfo = rvmcs(cpu->hvf_fd, VMCS_IDT_VECTORING_INFO);
             x68_segment_selector sel = {.sel = exit_qual & 0xffff};
-            vmx_handle_task_switch(cpu, sel, (exit_qual >> 30) & 0x3,
-             vinfo & VMCS_INTR_VALID, vinfo & VECTORING_INFO_VECTOR_MASK, vinfo
-             & VMCS_INTR_T_MASK);
+            hvf_get_registers(cpu);
+            hvf_handle_task_switch(cpu, sel, (exit_qual >> 30) & 0x3);
+            env->eip += ins_len;
+            hvf_put_registers(cpu);
             break;
         }
         case EXIT_REASON_TRIPLE_FAULT: {
