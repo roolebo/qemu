@@ -881,6 +881,10 @@ static int hvf_accel_init(MachineState *ms)
     HVFState *s;
 
     ret = hv_vm_create(HV_VM_DEFAULT);
+    if (ret == HV_ERROR) {
+        error_report("can't create a vm. entitlement missing?");
+        exit(1);
+    }
     assert_hvf_ok(ret);
 
     s = g_new0(HVFState, 1);
