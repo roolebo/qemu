@@ -1815,7 +1815,7 @@ blockdev_ss.add(files(
   'blockdev-nbd.c',
   'iothread.c',
   'job-qmp.c',
-))
+), gnutls)
 
 # os-posix.c contains POSIX-specific functions used by qemu-storage-daemon,
 # os-win32.c does not
@@ -1971,6 +1971,7 @@ qmp = declare_dependency(link_whole: [libqmp])
 
 libchardev = static_library('chardev', chardev_ss.sources() + genh,
                             name_suffix: 'fa',
+                            dependencies: [gnutls],
                             build_by_default: false)
 
 chardev = declare_dependency(link_whole: libchardev)
@@ -2189,7 +2190,7 @@ if have_tools
   qemu_io = executable('qemu-io', files('qemu-io.c'),
              dependencies: [block, qemuutil], install: true)
   qemu_nbd = executable('qemu-nbd', files('qemu-nbd.c'),
-               dependencies: [blockdev, qemuutil], install: true)
+               dependencies: [blockdev, qemuutil, gnutls], install: true)
 
   subdir('storage-daemon')
   subdir('contrib/rdmacm-mux')
