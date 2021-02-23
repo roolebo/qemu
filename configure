@@ -378,6 +378,7 @@ linux="no"
 solaris="no"
 profiler="no"
 cocoa="auto"
+vmnet="auto"
 softmmu="yes"
 linux_user="no"
 bsd_user="no"
@@ -1146,6 +1147,10 @@ for opt do
   ;;
   --enable-cocoa) cocoa="enabled"
   ;;
+  --disable-vmnet) vmnet="disabled"
+  ;;
+  --enable-vmnet) vmnet="enabled"
+  ;;
   --disable-system) softmmu="no"
   ;;
   --enable-system) softmmu="yes"
@@ -1832,6 +1837,7 @@ disabled with --disable-FEATURE, default is enabled if available
   vnc-jpeg        JPEG lossy compression for VNC server
   vnc-png         PNG compression for VNC server
   cocoa           Cocoa UI (Mac OS X only)
+  vmnet           support for vmnet framework (macOS only)
   virtfs          VirtFS
   virtiofsd       build virtiofs daemon (virtiofsd)
   libudev         Use libudev to enumerate host devices
@@ -6415,6 +6421,7 @@ NINJA=$ninja $meson setup \
         -Dkvm=$kvm -Dhax=$hax -Dwhpx=$whpx -Dhvf=$hvf \
         -Dxen=$xen -Dxen_pci_passthrough=$xen_pci_passthrough -Dtcg=$tcg \
         -Dcocoa=$cocoa -Dgtk=$gtk -Dmpath=$mpath -Dsdl=$sdl -Dsdl_image=$sdl_image \
+        -Dvmnet=$vmnet \
         -Dvnc=$vnc -Dvnc_sasl=$vnc_sasl -Dvnc_jpeg=$vnc_jpeg -Dvnc_png=$vnc_png \
         -Dgettext=$gettext -Dxkbcommon=$xkbcommon -Du2f=$u2f -Dvirtiofsd=$virtiofsd \
         -Dcapstone=$capstone -Dslirp=$slirp -Dfdt=$fdt -Dbrlapi=$brlapi \
