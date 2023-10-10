@@ -1094,6 +1094,8 @@ if test "$static" = "yes"; then
 elif test "$pie" != "no"; then
   if compile_prog "-Werror -fPIE -DPIE" "-pie"; then
     pie="yes"
+  elif test "$darwin" = "yes"; then
+    pie="yes"
   elif test "$pie" = "yes"; then
     error_exit "PIE not available due to missing toolchain support"
   else
