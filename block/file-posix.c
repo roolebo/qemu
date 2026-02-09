@@ -2105,8 +2105,27 @@ static int handle_aiocb_write_zeroes_unmap(void *opaque)
     default:
         return ret;
     }
-#endif
+#elif defined(__APPLE__) && (__MACH__)
+    uint32_t align = aiocb->bs->bl.pdiscard_alignment;
 
+    if (QEMU_ALIGN_DOWN(aiocb->aio_offset, (off_t)align) == aiocb->aio_offset &&
+        QEMU_ALIGN_DOWN(aiocb->aio_nbytes, (off_t)align) == aiocb->aio_nbytes) {
+
+        fpunchhole_t ph = {
+            .fp_flags = 0,
+            .reserved = 0,
+            .fp_offset = aiocb->aio_offset,
+            .fp_length = aiocb->aio_nbytes,
+        };
+
+        if (fcntl(s->fd, F_PUNCHHOLE, &ph) != -1) {
+            return 0;
+        }
+        if (errno != ENODEV) {
+            return -errno;
+        }
+    }
+#endif
     /* If we couldn't manage to unmap while guaranteed that the area reads as
      * all-zero afterwards, just write zeroes without unmapping */
     return handle_aiocb_write_zeroes(aiocb);
