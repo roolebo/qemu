@@ -3152,6 +3152,7 @@ int coroutine_fn bdrv_co_pdiscard(BdrvChild *child, int64_t offset,
     int head, tail, align;
     BlockDriverState *bs = child->bs;
     IO_CODE();
+    trace_bdrv_co_pdiscard(bs, offset, bytes);
     assert_bdrv_graph_readable();
 
     if (!bs || !bs->drv || !bdrv_co_is_inserted(bs)) {
