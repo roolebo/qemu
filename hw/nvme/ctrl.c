@@ -6961,6 +6961,10 @@ static void nvme_format_ns_cb(void *opaque, int ret)
 
     if (iocb->offset < ns->size) {
         bytes = MIN(BDRV_REQUEST_MAX_BYTES, ns->size - iocb->offset);
+        /* Respect discard granularity to enjoy UNMAP */
+        /* XXX Unless nvme driver knows the limits of the underlying storage it
+         * cannot split I/O without breaking UNMAP granularity */
+        bytes = MIN_NON_ZERO(bytes, QEMU_ALIGN_DOWN(bytes, 4096));
 
         iocb->aiocb = blk_aio_pwrite_zeroes(ns->blkconf.blk, iocb->offset,
                                             bytes, BDRV_REQ_MAY_UNMAP,
