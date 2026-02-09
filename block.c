@@ -6541,12 +6541,14 @@ int coroutine_mixed_fn bdrv_has_zero_init(BlockDriverState *bs)
 
 bool bdrv_can_write_zeroes_with_unmap(BlockDriverState *bs)
 {
-    IO_CODE();
-    if (!(bs->open_flags & BDRV_O_UNMAP)) {
-        return false;
-    }
+    bool write_zeroes_with_unmap = true;
 
-    return bs->supported_zero_flags & BDRV_REQ_MAY_UNMAP;
+    IO_CODE();
+    write_zeroes_with_unmap &= (bs->open_flags & BDRV_O_UNMAP);
+    write_zeroes_with_unmap &= (bs->supported_zero_flags & BDRV_REQ_MAY_UNMAP);
+
+    trace_bdrv_can_write_zeroes_with_unmap(bs, write_zeroes_with_unmap);
+    return write_zeroes_with_unmap;
 }
 
 void bdrv_get_backing_filename(BlockDriverState *bs,

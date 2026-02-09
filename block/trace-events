@@ -1,6 +1,7 @@
 # See docs/devel/tracing.rst for syntax documentation.
 
 # ../block.c
+bdrv_can_write_zeroes_with_unmap(void *bs, bool write_zeroes_may_unmap) "bs %p write_zeroes_may_unmap %d"
 bdrv_open_common(void *bs, const char *filename, int flags, const char *format_name) "bs %p filename \"%s\" flags 0x%x format_name \"%s\""
 bdrv_lock_medium(void *bs, bool locked) "bs %p locked %d"
 
